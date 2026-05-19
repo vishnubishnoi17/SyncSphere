@@ -1,6 +1,7 @@
 import type { Note, Folder } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const rawApiBase = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const API_BASE = rawApiBase.endsWith('/api') ? rawApiBase : `${rawApiBase}/api`;
 
 let authToken: string | null = null;
 
