@@ -209,12 +209,14 @@ retryCount 5 → max, op dropped
 ```env
 PORT=3001
 NODE_ENV=development
+DATABASE_SSL=false
 DATABASE_URL=postgresql://user:pass@localhost:5432/syncsphere
 JWT_SECRET=min-32-char-secret-change-in-production
 JWT_EXPIRES_IN=7d
 REFRESH_TOKEN_SECRET=another-min-32-char-secret
 REFRESH_TOKEN_EXPIRES_IN=30d
 CLIENT_URL=http://localhost:5173
+CLIENT_ORIGINS=http://localhost:5173
 ```
 
 ### client/.env
@@ -235,29 +237,34 @@ VITE_WS_URL=http://localhost:3001
    - **Root Directory:** `server`
    - **Build:** `npm install && npm run build`
    - **Start:** `node dist/index.js`
-4. Add environment variables (DATABASE_URL, JWT_SECRET, REFRESH_TOKEN_SECRET, CLIENT_URL=your-vercel-url)
+4. Add environment variables (DATABASE_URL, DATABASE_SSL=true, JWT_SECRET, REFRESH_TOKEN_SECRET, CLIENT_URL=your-vercel-url, CLIENT_ORIGINS=your-vercel-url)
 5. Optional: use `render.yaml` in repo root for infrastructure-as-code
 
-### Frontend → Vercel.com
+### Frontend → Vercel
 
-1. Go to [vercel.com](https://vercel.com) → New Project → Import GitHub repo
-2. Settings:
-   - **Framework:** Vite
-   - **Root Directory:** `client`
-   - **Build:** `npm run build`
-   - **Output:** `dist`
-3. Add env vars: `VITE_API_URL=https://your-render-url.onrender.com/api` and `VITE_WS_URL=https://your-render-url.onrender.com`
+1. Import the GitHub repo in Vercel
+2. Set **Root Directory** to `client`
+3. Add environment variables:
+```env
+VITE_API_URL=https://your-render-service.onrender.com/api
+VITE_WS_URL=https://your-render-service.onrender.com
+```
+4. Keep the included `client/vercel.json` for SPA routing
+
+### GitHub Actions
+
+- `ci.yml` builds client and server on pushes and pull requests.
+- `deploy.yml` can trigger deploy hooks after pushes to `main`.
+- Optional repository secrets:
+```env
+RENDER_DEPLOY_HOOK_URL=https://api.render.com/deploy/...
+VERCEL_DEPLOY_HOOK_URL=https://api.vercel.com/v1/integrations/deploy/...
+```
 
 ### After deploy
 - Update `CLIENT_URL` on Render to your Vercel URL
+- Update `CLIENT_ORIGINS` on Render to your Vercel URL
 - Redeploy server
-
-### Auto-deploy with GitHub Actions
-Set these secrets in GitHub repo settings:
-- `RENDER_DEPLOY_HOOK_URL` — from Render dashboard
-- `VERCEL_TOKEN` — from Vercel account settings
-- `VITE_API_URL` — your Render backend URL + /api
-- `VITE_WS_URL` — your Render backend URL
 
 ---
 

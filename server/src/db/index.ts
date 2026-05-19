@@ -1,10 +1,13 @@
 import { Pool } from "pg";
 import fs from "fs";
 import path from "path";
+import { env } from "../config/env";
+
+const useSsl = env.DATABASE_SSL === "true";
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  connectionString: env.DATABASE_URL,
+  ssl: useSsl ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

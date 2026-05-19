@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../db';
+import { env } from '../config/env';
 
 export interface RegisterInput {
   email: string;
@@ -19,14 +20,14 @@ export interface LoginInput {
 const generateTokens = (userId: string, email: string, deviceId: string) => {
   const accessToken = jwt.sign(
     { userId, email, deviceId },
-    process.env.JWT_SECRET || 'secret',
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
+    env.JWT_SECRET,
+    { expiresIn: env.JWT_EXPIRES_IN } as jwt.SignOptions
   );
 
   const refreshToken = jwt.sign(
     { userId, deviceId },
-    process.env.REFRESH_TOKEN_SECRET || 'refresh-secret',
-    { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '30d' } as jwt.SignOptions
+    env.REFRESH_TOKEN_SECRET,
+    { expiresIn: env.REFRESH_TOKEN_EXPIRES_IN } as jwt.SignOptions
   );
 
   return { accessToken, refreshToken };
@@ -97,7 +98,7 @@ export const loginUser = async (input: LoginInput) => {
 export const refreshAccessToken = async (refreshToken: string) => {
   let payload: { userId: string; deviceId: string };
   try {
-    payload = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET || 'refresh-secret') as {
+    payload = jwt.verify(refreshToken, env.REFRESH_TOKEN_SECRET) as {
       userId: string;
       deviceId: string;
     };

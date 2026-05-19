@@ -99,6 +99,9 @@ const applyUpdateOp = async (userId: string, deviceId: string, op: SyncOperation
   const mergedTitle = (p.title as string) ?? serverNote.title;
   const mergedContent = (p.content as string) ?? serverNote.content;
   const mergedTags = (p.tags as string[]) ?? serverNote.tags;
+  const isStarred = (p.isStarred as boolean | undefined) ?? (p.is_starred as boolean | undefined) ?? null;
+  const isPinned = (p.isPinned as boolean | undefined) ?? (p.is_pinned as boolean | undefined) ?? null;
+  const folderId = (p.folderId as string | null | undefined) ?? (p.folder_id as string | null | undefined) ?? null;
 
   const result = await query(
     `UPDATE notes
@@ -114,9 +117,9 @@ const applyUpdateOp = async (userId: string, deviceId: string, op: SyncOperation
       mergedTitle,
       mergedContent,
       mergedTags,
-      (p.isStarred as boolean) ?? null,
-      (p.isPinned as boolean) ?? null,
-      (p.folderId as string) ?? null,
+      isStarred,
+      isPinned,
+      folderId,
       op.noteId,
       userId,
     ]

@@ -9,7 +9,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 3001
+        value: "3001"
+      - key: DATABASE_SSL
+        value: "true"
       - key: DATABASE_URL
         sync: false        # Set manually in Render dashboard
       - key: JWT_SECRET
@@ -18,4 +20,6 @@ services:
         generateValue: true
       - key: CLIENT_URL
         sync: false        # Your Vercel frontend URL
+      - key: CLIENT_ORIGINS
+        sync: false        # Usually the same as CLIENT_URL; comma-separate extra origins
     healthCheckPath: /health

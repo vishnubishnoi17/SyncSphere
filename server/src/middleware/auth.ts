@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { env } from '../config/env';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -22,7 +23,7 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 
   const token = authHeader.slice(7);
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || 'secret') as JwtPayload;
+    const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
     req.userId = payload.userId;
     req.deviceId = payload.deviceId;
     req.email = payload.email;
@@ -37,7 +38,7 @@ export const optionalAuth = (req: AuthRequest, res: Response, next: NextFunction
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
     try {
-      const payload = jwt.verify(token, process.env.JWT_SECRET || 'secret') as JwtPayload;
+      const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
       req.userId = payload.userId;
       req.deviceId = payload.deviceId;
       req.email = payload.email;

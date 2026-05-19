@@ -1,6 +1,7 @@
 import { Server as IOServer, Socket } from 'socket.io';
 import { Server as HTTPServer } from 'http';
 import jwt from 'jsonwebtoken';
+import { env } from '../config/env';
 
 interface AuthSocket extends Socket {
   userId?: string;
@@ -27,7 +28,7 @@ let colorIdx = 0;
 export const createWebSocketGateway = (httpServer: HTTPServer) => {
   const io = new IOServer(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      origin: env.CLIENT_ORIGINS,
       methods: ['GET', 'POST'],
       credentials: true,
     },
@@ -40,7 +41,7 @@ export const createWebSocketGateway = (httpServer: HTTPServer) => {
     if (!token) return next(new Error('Authentication required'));
 
     try {
-      const payload = jwt.verify(token, process.env.JWT_SECRET || 'secret') as {
+      const payload = jwt.verify(token, env.JWT_SECRET) as {
         userId: string; deviceId?: string; email?: string;
       };
       socket.userId = payload.userId;

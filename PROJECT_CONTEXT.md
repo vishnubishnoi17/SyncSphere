@@ -205,7 +205,7 @@ The UI shows a "⚠ Field-level merge applied" badge in the editor status bar.
 ### GitHub Secrets Required
 ```
 RENDER_DEPLOY_HOOK_URL   ← from Render dashboard → Deploy hooks
-VERCEL_TOKEN             ← from vercel.com/account/tokens
+VERCEL_DEPLOY_HOOK_URL   ← from Vercel project → Deploy Hooks
 VITE_API_URL             ← https://your-app.onrender.com/api
 VITE_WS_URL              ← https://your-app.onrender.com
 ```
@@ -214,7 +214,7 @@ VITE_WS_URL              ← https://your-app.onrender.com
 - Root dir: `server`
 - Build: `npm install && npm run build`
 - Start: `node dist/index.js`
-- Env: DATABASE_URL, JWT_SECRET, REFRESH_TOKEN_SECRET, CLIENT_URL, PORT=3001
+- Env: DATABASE_URL, DATABASE_SSL=true, JWT_SECRET, REFRESH_TOKEN_SECRET, CLIENT_URL, CLIENT_ORIGINS, PORT=3001
 
 ### Vercel (Frontend)
 - Root dir: `client`

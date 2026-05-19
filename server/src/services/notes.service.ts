@@ -12,9 +12,12 @@ export interface UpdateNoteInput {
   title?: string;
   content?: string;
   folderId?: string | null;
+  folder_id?: string | null;
   tags?: string[];
   isStarred?: boolean;
+  is_starred?: boolean;
   isPinned?: boolean;
+  is_pinned?: boolean;
 }
 
 export const getNotes = async (userId: string, includeDeleted = false) => {
@@ -77,10 +80,14 @@ export const updateNote = async (
 
   if (input.title !== undefined) { updates.push(`title = $${idx++}`); values.push(input.title); }
   if (input.content !== undefined) { updates.push(`content = $${idx++}`); values.push(input.content); }
-  if (input.folderId !== undefined) { updates.push(`folder_id = $${idx++}`); values.push(input.folderId || null); }
+  const folderId = input.folderId ?? input.folder_id;
+  const isStarred = input.isStarred ?? input.is_starred;
+  const isPinned = input.isPinned ?? input.is_pinned;
+
+  if (folderId !== undefined) { updates.push(`folder_id = $${idx++}`); values.push(folderId || null); }
   if (input.tags !== undefined) { updates.push(`tags = $${idx++}`); values.push(input.tags); }
-  if (input.isStarred !== undefined) { updates.push(`is_starred = $${idx++}`); values.push(input.isStarred); }
-  if (input.isPinned !== undefined) { updates.push(`is_pinned = $${idx++}`); values.push(input.isPinned); }
+  if (isStarred !== undefined) { updates.push(`is_starred = $${idx++}`); values.push(isStarred); }
+  if (isPinned !== undefined) { updates.push(`is_pinned = $${idx++}`); values.push(isPinned); }
 
   updates.push(`version = version + 1`);
   updates.push(`updated_at = NOW()`);

@@ -1,10 +1,9 @@
 import 'dotenv/config';
 import http from 'http';
 import app from './app';
+import { env } from './config/env';
 import { initDB } from './db';
 import { createWebSocketGateway } from './websocket/gateway';
-
-const PORT = parseInt(process.env.PORT || '3001', 10);
 
 async function bootstrap() {
   try {
@@ -13,9 +12,9 @@ async function bootstrap() {
     const httpServer = http.createServer(app);
     createWebSocketGateway(httpServer);
 
-    httpServer.listen(PORT, () => {
-      console.log(`✅ SyncSphere server running on port ${PORT}`);
-      console.log(`   NODE_ENV: ${process.env.NODE_ENV}`);
+    httpServer.listen(env.PORT, () => {
+      console.log(`✅ SyncSphere server running on port ${env.PORT}`);
+      console.log(`   NODE_ENV: ${env.NODE_ENV}`);
     });
 
     const shutdown = () => {
