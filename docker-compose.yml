@@ -1,0 +1,51 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: syncsphere
+      POSTGRES_PASSWORD: syncsphere
+      POSTGRES_DB: syncsphere
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U syncsphere']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: ./server
+      dockerfile: ../docker/Dockerfile.server
+    ports:
+      - '3001:3001'
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://syncsphere:syncsphere@postgres:5432/syncsphere
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRES_IN: 7d
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-change-refresh-in-production}
+      REFRESH_TOKEN_EXPIRES_IN: 30d
+      CLIENT_URL: http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  client:
+    build:
+      context: ./client
+      dockerfile: ../docker/Dockerfile.client
+    ports:
+      - '5173:80'
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  pgdata:
