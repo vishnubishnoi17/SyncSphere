@@ -1,6 +1,6 @@
 import type { Note, Folder } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 let authToken: string | null = null;
 
