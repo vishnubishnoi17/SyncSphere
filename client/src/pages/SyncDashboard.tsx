@@ -23,7 +23,7 @@ export const SyncDashboard: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const s = await api.getSyncStatus();
+        const s = await api.getSyncStatus() as SyncStatus;
         setStatus(s);
         const ops = await db.pendingOps.count();
         setPendingOps(ops);

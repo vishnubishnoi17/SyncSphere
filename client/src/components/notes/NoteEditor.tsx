@@ -8,13 +8,15 @@ import TaskItem from '@tiptap/extension-task-item';
 import CharacterCount from '@tiptap/extension-character-count';
 import { useNotes } from '../../hooks/useNotes';
 import { socketClient } from '../../websocket/socketClient';
+import { TagInput } from './TagInput';
+import { PresenceAvatars } from '../sync/PresenceAvatars';
 import type { Note } from '../../types';
 
 interface Props { note: Note | null; onShowHistory?: (noteId: string) => void; }
 
 const Btn: React.FC<{ onClick: () => void; active?: boolean; title: string; children: React.ReactNode }> = ({ onClick, active, title, children }) => (
   <button onClick={onClick} title={title}
-    className={`px-2 py-1 rounded text-xs font-mono transition-colors ${active ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+    className={"px-2 py-1 rounded text-xs font-mono transition-colors " + (active ? "bg-indigo-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800")}>
     {children}
   </button>
 );
@@ -22,9 +24,12 @@ const Btn: React.FC<{ onClick: () => void; active?: boolean; title: string; chil
 export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
   const { updateNote, deleteNote } = useNotes();
   const [title, setTitle] = useState('');
+  const [typingIndicator, setTypingIndicator] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevNoteId = useRef<string | null>(null);
   const loading = useRef(false);
+  const isTyping = useRef(false);
 
   const editor = useEditor({
     extensions: [
@@ -39,19 +44,63 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
     onUpdate: ({ editor }) => {
       if (!note || loading.current) return;
       scheduleSave(note.id, title, editor.getHTML());
+      handleTyping(note.id);
     },
   });
 
   useEffect(() => {
     if (!note || !editor) return;
-    if (prevNoteId.current && prevNoteId.current !== note.id) socketClient.leaveNote(prevNoteId.current);
+    if (prevNoteId.current && prevNoteId.current !== note.id) {
+      socketClient.leaveNote(prevNoteId.current);
+    }
     loading.current = true;
     setTitle(note.title);
     editor.commands.setContent(note.content || '');
     setTimeout(() => { loading.current = false; }, 80);
     socketClient.joinNote(note.id);
     prevNoteId.current = note.id;
+    setTypingIndicator(null);
   }, [note?.id]); // eslint-disable-line
+
+  // Listen for remote typing indicators
+  useEffect(() => {
+    if (!note) return;
+    const unsub = socketClient.onRemoteTyping((data) => {
+      if (data.typing) {
+        setTypingIndicator(data.userName || 'Someone');
+        clearTimeout(typingTimer.current!);
+        typingTimer.current = setTimeout(() => setTypingIndicator(null), 3000);
+      } else {
+        setTypingIndicator(null);
+      }
+    });
+    return () => unsub();
+  }, [note?.id]); // eslint-disable-line
+
+  // Listen for remote edits
+  useEffect(() => {
+    if (!note) return;
+    const unsub = socketClient.onRemoteEdit((data) => {
+      if (data.noteId === note?.id && editor && !loading.current) {
+        // Reload note content from store on remote edit
+        // (the sync engine will pull and upsert; this just signals the user)
+        console.log('[WS] Remote edit received for', data.noteId);
+      }
+    });
+    return () => unsub();
+  }, [note?.id, editor]); // eslint-disable-line
+
+  const handleTyping = useCallback((noteId: string) => {
+    if (!isTyping.current) {
+      isTyping.current = true;
+      socketClient.sendTypingStart(noteId);
+    }
+    clearTimeout(typingTimer.current!);
+    typingTimer.current = setTimeout(() => {
+      isTyping.current = false;
+      socketClient.sendTypingStop(noteId);
+    }, 2000);
+  }, []);
 
   const scheduleSave = useCallback((id: string, t: string, c: string) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -80,16 +129,27 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Status */}
+      {/* Status bar */}
       <div className="flex items-center gap-2 px-5 py-2 border-b border-gray-800/50">
-        <span className={`flex items-center gap-1.5 text-xs ${note._syncStatus === 'pending' ? 'text-amber-400' : note._syncStatus === 'conflict' ? 'text-red-400' : 'text-emerald-500'}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${note._syncStatus === 'pending' ? 'bg-amber-400 animate-pulse' : note._syncStatus === 'conflict' ? 'bg-red-400' : 'bg-emerald-500'}`} />
+        <span className={"flex items-center gap-1.5 text-xs " + (note._syncStatus === 'pending' ? "text-amber-400" : note._syncStatus === 'conflict' ? "text-red-400" : "text-emerald-500")}>
+          <span className={"w-1.5 h-1.5 rounded-full " + (note._syncStatus === 'pending' ? "bg-amber-400 animate-pulse" : note._syncStatus === 'conflict' ? "bg-red-400" : "bg-emerald-500")} />
           {note._syncStatus === 'pending' ? 'Saving…' : note._syncStatus === 'conflict' ? 'Conflict resolved' : 'Saved'}
         </span>
         {note._syncStatus === 'conflict' && (
           <span className="text-xs bg-red-950 text-red-400 border border-red-900 px-2 py-0.5 rounded-full">⚠ Field-level merge applied</span>
         )}
+        {typingIndicator && (
+          <span className="text-xs text-indigo-400 animate-pulse flex items-center gap-1">
+            <span className="flex gap-0.5">
+              <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </span>
+            {typingIndicator} is typing
+          </span>
+        )}
         <div className="flex-1" />
+        <PresenceAvatars noteId={note.id} />
         {onShowHistory && (
           <button onClick={() => onShowHistory(note.id)} className="text-xs text-gray-500 hover:text-indigo-400 transition-colors flex items-center gap-1" title="Version history">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -97,8 +157,8 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
           </button>
         )}
         <button onClick={() => updateNote(note.id, { is_starred: !note.is_starred })}
-          className={`p-1.5 rounded transition-colors ${note.is_starred ? 'text-yellow-400' : 'text-gray-600 hover:text-gray-300'}`}>
-          <svg className="w-4 h-4" viewBox="0 0 20 20" fill={note.is_starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={note.is_starred ? 0 : 1.5}>
+          className={"p-1.5 rounded transition-colors " + (note.is_starred ? "text-yellow-400" : "text-gray-600 hover:text-gray-300")}>
+          <svg className="w-4 h-4" viewBox="0 0 20 20" fill={note.is_starred ? "currentColor" : "none"} stroke="currentColor" strokeWidth={note.is_starred ? 0 : 1.5}>
             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
           </svg>
         </button>
@@ -126,7 +186,7 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
           <Btn onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive('taskList')} title="Task list">☑ todo</Btn>
           <div className="w-px h-4 bg-gray-800 mx-1" />
           <Btn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title="Quote">❝</Btn>
-          <Btn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title="Code block">{`</>`}</Btn>
+          <Btn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title="Code block">{"</>"}</Btn>
           <div className="w-px h-4 bg-gray-800 mx-1" />
           <Btn onClick={() => editor.chain().focus().undo().run()} title="Undo">↩</Btn>
           <Btn onClick={() => editor.chain().focus().redo().run()} title="Redo">↪</Btn>
@@ -144,13 +204,20 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
         <EditorContent editor={editor} />
       </div>
 
+      {/* Tags */}
+      <TagInput note={note} />
+
       {/* Footer */}
       <div className="px-6 py-1.5 border-t border-gray-800/50 flex items-center gap-3 text-xs text-gray-600">
         <span>v{note.version}</span>
         <span>{words}w · {chars}c</span>
-        {note.tags?.length > 0 && <span>{note.tags.map(t => `#${t}`).join(' ')}</span>}
         <div className="flex-1" />
-        {note.folder_name && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: note.folder_color || '#6366f1' }} />{note.folder_name}</span>}
+        {note.folder_name && (
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: note.folder_color || '#6366f1' }} />
+            {note.folder_name}
+          </span>
+        )}
         <span>{new Date(note.updated_at).toLocaleString()}</span>
       </div>
     </div>

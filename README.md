@@ -1,229 +1,334 @@
 # SyncSphere
 
-**Local-first collaborative workspace** with real-time sync, offline support, and conflict resolution.
+A **local-first collaborative note-taking workspace** with offline support, real-time sync, and conflict resolution.
 
-> Built to demonstrate distributed systems thinking: offline-first architecture, operational logging, field-level conflict resolution, and eventual consistency.
+[![CI](https://github.com/vishnubishnoi17/SyncSphere/actions/workflows/ci.yml/badge.svg)](https://github.com/vishnubishnoi17/SyncSphere/actions/workflows/ci.yml)
+
+---
+
+## Features
+
+- **Offline-first** — writes go to IndexedDB instantly, sync happens in background
+- **Rich text editor** — TipTap with headings, bold/italic/strike, highlight, code blocks, task lists, blockquotes
+- **Tags** — chip input per note, filter notes by tag in the list
+- **Folders** — create with custom colors, organize notes
+- **Sync queue** — pending operations survive page reloads; retry with exponential backoff
+- **Conflict resolution** — field-level merge (title, content, tags, starred/pinned) with version vectors
+- **Real-time collaboration** — WebSocket presence avatars, typing indicators, live edit broadcast
+- **Sync dashboard** — device sessions, pending ops count, conflict history
+- **Version history** — per-note operation log with payload preview
+- **Trash & restore** — soft delete with recovery
+
+---
+
+## Quick Start (Local)
+
+### Prerequisites
+- Node.js 20+
+- PostgreSQL 16+ (or use Docker)
+
+### 1. Clone and install
+```bash
+git clone https://github.com/vishnubishnoi17/SyncSphere.git
+cd SyncSphere
+npm install
+cd client && npm install
+cd ../server && npm install
+cd ..
+```
+
+### 2. Configure environment
+```bash
+# Server
+cp server/.env.example server/.env
+# Edit server/.env — set DATABASE_URL, JWT_SECRET, REFRESH_TOKEN_SECRET
+
+# Client (optional — defaults work with local server)
+cp client/.env.example client/.env
+```
+
+### 3a. Run with Docker (easiest)
+```bash
+# Starts PostgreSQL + server + client
+docker compose up --build
+# → http://localhost:5173
+```
+
+### 3b. Run locally (with existing Postgres)
+```bash
+# Terminal 1 — server
+cd server && npm run dev
+
+# Terminal 2 — client
+cd client && npm run dev
+
+# → http://localhost:5173
+```
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│              React Client                    │
-│  ┌──────────┐ ┌──────────┐ ┌─────────────┐ │
-│  │  TipTap  │ │ Zustand  │ │  Socket.IO  │ │
-│  │  Editor  │ │  Store   │ │   Client    │ │
-│  └──────────┘ └──────────┘ └─────────────┘ │
-│  ┌──────────────────────────────────────┐   │
-│  │           IndexedDB (Dexie)          │   │
-│  │  notes | folders | pendingOps        │   │
-│  └──────────────────────────────────────┘   │
-│  ┌──────────────────────────────────────┐   │
-│  │           SyncEngine                 │   │
-│  │  offlineQueue → push → pull → merge  │   │
-│  └──────────────────────────────────────┘   │
-└─────────────────┬───────────────────────────┘
-                  │ HTTP REST + WebSocket
-┌─────────────────▼───────────────────────────┐
-│              Node.js + Express               │
-│  ┌──────────┐ ┌──────────┐ ┌─────────────┐ │
-│  │   Auth   │ │   Sync   │ │  Socket.IO  │ │
-│  │ Service  │ │ Service  │ │   Gateway   │ │
-│  └──────────┘ └──────────┘ └─────────────┘ │
-└─────────────────┬───────────────────────────┘
-                  │
-┌─────────────────▼───────────────────────────┐
-│            PostgreSQL (Neon)                 │
-│  users | notes | folders | operations        │
-│  devices | sync_state | refresh_tokens       │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                    Browser (React + TS)                   │
+│                                                           │
+│   NoteEditor  ──► Zustand Store  ──► SyncEngine          │
+│   (TipTap)         (optimistic)       ├─ OfflineQueue    │
+│   NoteList         IndexedDB          ├─ ConflictResolver│
+│   Sidebar          (Dexie)            └─ REST POST /sync  │
+│   Presence                                               │
+└────────────────────────┬─────────────────────┬──────────┘
+                         │ REST /api            │ Socket.IO
+                         ▼                      ▼
+┌──────────────────────────────────────────────────────────┐
+│                Node.js + Express Server                   │
+│                                                           │
+│   /auth  /notes  /folders  /sync                         │
+│   AuthSvc  NotesSvc  SyncSvc  WebSocket Gateway          │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+                    ┌────────▼────────┐
+                    │   PostgreSQL     │
+                    │  users, devices  │
+                    │  notes, folders  │
+                    │  operations log  │
+                    │  sync_state      │
+                    └─────────────────┘
 ```
+
+---
 
 ## Sync Flow
 
 ```
 User edits note
-      │
-      ▼
-IndexedDB updated instantly  ← optimistic update
-      │
-      ▼
-Operation enqueued in pendingOps
-      │
-      ├── Online? ──► POST /api/sync (push ops + pull changes)
-      │                    │
-      │                    ├── Server applies ops
-      │                    ├── Conflict detected? → field-level merge
-      │                    └── Returns server changes since lastSyncAt
-      │
-      └── Offline? → ops stay in queue, retry on reconnect (exponential backoff)
+     │
+     ▼
+Write to IndexedDB (immediate)
+Enqueue PendingOperation
+Mark note _isDirty = true
+     │
+ [online?]──No──► wait, queue persists
+     │ Yes
+     ▼
+SyncEngine.triggerSync()  (every 30s + on edit + on reconnect)
+     │
+     ├─ getDrainableOps() — filter by retryCount + backoff delay
+     ├─ POST /api/sync { deviceId, lastSyncAt, operations }
+     │
+     ▼  Server
+     ├─ Apply each op (version check → conflict if clientVersion < serverVersion)
+     ├─ Field-level merge for conflicts
+     ├─ Return { appliedOps, conflictedOps, serverChanges, newSyncAt }
+     │
+     ▼  Client
+     ├─ acknowledgeOps → delete from IndexedDB queue
+     ├─ upsertNotes(serverChanges) → update IndexedDB
+     ├─ resolveConflict locally for unresolved conflicts
+     └─ setSyncMeta('lastSyncAt', newSyncAt)
 ```
+
+---
 
 ## Conflict Resolution
 
-```
-Device A (offline)          Device B (online)
-  edits title                 edits content
-       │                           │
-       └──────── both sync ─────────┘
-                      │
-              Version mismatch detected
-                      │
-              Field-level merge:
-                title  ← Device A (newer timestamp)
-                content ← Device B (longer wins)
-                      │
-              Consistent state stored
-              Operations log updated with conflict=true
-```
+When `clientVersion < serverVersion`, a conflict is detected.
 
-## Quick Start
+**Field-level merge (default strategy):**
 
-### Prerequisites
-- Node.js 18+
-- PostgreSQL (or Neon free cloud DB)
-
-### 1. Clone and install
-```bash
-git clone https://github.com/vishnubishnoi17/SyncSphere.git
-cd SyncSphere
-npm run install:all
-```
-
-### 2. Configure environment
-```bash
-cp .env.example server/.env
-# Edit server/.env — set DATABASE_URL to your Neon connection string
-```
-
-```bash
-# client/.env
-echo "VITE_API_URL=http://localhost:3001/api" > client/.env
-echo "VITE_WS_URL=http://localhost:3001" >> client/.env
-```
-
-### 3. Run
-```bash
-npm run dev
-# Client: http://localhost:5173
-# Server: http://localhost:3001
-```
-
-### 4. Docker (optional)
-```bash
-docker compose up -d
-```
-
-## Features
-
-| Feature | Description |
+| Field | Strategy |
 |---|---|
-| **Offline-first** | All writes go to IndexedDB immediately, no server needed |
-| **Sync engine** | Push/pull with exponential backoff retry on failure |
-| **Conflict resolution** | Field-level merge — title and content resolved independently |
-| **Real-time** | Socket.IO presence, live edits, cursor sync, typing indicators |
-| **Rich text editor** | TipTap — bold, italic, headings, lists, tasks, code blocks |
-| **Folders** | Create/delete folders with color coding |
-| **Trash** | Soft delete with restore and permanent delete |
-| **Operation history** | Every write immutably logged — full audit trail |
-| **Sync dashboard** | Live view of all devices, sync state, conflict count |
-| **JWT auth** | Access + refresh tokens, per-device session tracking |
-| **Version tracking** | Monotonic version counter on every note |
+| `title` | Pick longer string |
+| `content` | Pick longer string |
+| `tags` | Union merge (deduplicated) |
+| `is_starred` | OR merge (if either set it, keep) |
+| `is_pinned` | OR merge |
+| `folder_id` | Server wins (authoritative) |
+| `version` | Server version |
 
-## API Routes
+This is implemented in both `server/src/services/sync.service.ts` (server-side) and `client/src/sync/conflictResolver.ts` (client-side for locally-unresolved cases).
 
+**Retry/Backoff:**
 ```
-POST   /api/auth/register
-POST   /api/auth/login
-POST   /api/auth/refresh
-GET    /api/auth/me
-
-GET    /api/notes
-GET    /api/notes/search?q=
-GET    /api/notes/:id
-POST   /api/notes
-PATCH  /api/notes/:id
-DELETE /api/notes/:id
-POST   /api/notes/:id/restore
-
-GET    /api/folders
-POST   /api/folders
-DELETE /api/folders/:id
-
-POST   /api/sync
-GET    /api/sync/status
-GET    /api/sync/history/:noteId
+retryCount 0 → immediate
+retryCount 1 → 2s delay
+retryCount 2 → 4s delay
+retryCount 3 → 8s delay
+retryCount 4 → 16s delay
+retryCount 5 → max, op dropped
 ```
+
+---
 
 ## WebSocket Events
 
+| Event | Direction | Description |
+|---|---|---|
+| `note:join` | client→server | Join note collaboration room |
+| `note:leave` | client→server | Leave room |
+| `note:edit` | client→server | Broadcast delta to room |
+| `note:remote_edit` | server→client | Receive remote delta |
+| `cursor:update` | client→server | Send cursor position |
+| `cursor:remote` | server→client | Receive remote cursor |
+| `typing:start/stop` | client→server | Typing indicator |
+| `typing:remote` | server→client | Remote typing indicator |
+| `presence:update` | server→client | Room member list |
+| `sync:complete` | client→server | Notify other devices |
+| `sync:invalidate` | server→client | Trigger re-sync on other devices |
+
+---
+
+## API Reference
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | /api/auth/register | ❌ | Create account |
+| POST | /api/auth/login | ❌ | Login |
+| POST | /api/auth/refresh | ❌ | Refresh access token |
+| GET | /api/auth/me | ✅ | User + devices |
+| GET | /api/notes | ✅ | List notes |
+| GET | /api/notes/search?q= | ✅ | Search |
+| GET | /api/notes/:id | ✅ | Get note |
+| POST | /api/notes | ✅ | Create note |
+| PATCH | /api/notes/:id | ✅ | Update note |
+| DELETE | /api/notes/:id | ✅ | Soft delete |
+| POST | /api/notes/:id/restore | ✅ | Restore |
+| GET | /api/folders | ✅ | List folders |
+| POST | /api/folders | ✅ | Create folder |
+| DELETE | /api/folders/:id | ✅ | Delete folder |
+| POST | /api/sync | ✅ | Main sync (push+pull) |
+| GET | /api/sync/status | ✅ | Device sync status |
+| GET | /api/sync/history/:noteId | ✅ | Operation log |
+
+---
+
+## Environment Variables
+
+### server/.env
+```env
+PORT=3001
+NODE_ENV=development
+DATABASE_URL=postgresql://user:pass@localhost:5432/syncsphere
+JWT_SECRET=min-32-char-secret-change-in-production
+JWT_EXPIRES_IN=7d
+REFRESH_TOKEN_SECRET=another-min-32-char-secret
+REFRESH_TOKEN_EXPIRES_IN=30d
+CLIENT_URL=http://localhost:5173
 ```
-Client → Server          Server → Client
-─────────────────        ───────────────────────
-note:join                note:remote_edit
-note:leave               cursor:remote
-note:edit                typing:remote
-cursor:update            presence:update
-typing:start             sync:invalidate
-typing:stop
-sync:complete
+
+### client/.env
+```env
+VITE_API_URL=http://localhost:3001/api
+VITE_WS_URL=http://localhost:3001
 ```
+
+---
+
+## Deployment
+
+### Backend → Render.com
+
+1. Go to [render.com](https://render.com) → New Web Service
+2. Connect your GitHub repo
+3. Settings:
+   - **Root Directory:** `server`
+   - **Build:** `npm install && npm run build`
+   - **Start:** `node dist/index.js`
+4. Add environment variables (DATABASE_URL, JWT_SECRET, REFRESH_TOKEN_SECRET, CLIENT_URL=your-vercel-url)
+5. Optional: use `render.yaml` in repo root for infrastructure-as-code
+
+### Frontend → Vercel.com
+
+1. Go to [vercel.com](https://vercel.com) → New Project → Import GitHub repo
+2. Settings:
+   - **Framework:** Vite
+   - **Root Directory:** `client`
+   - **Build:** `npm run build`
+   - **Output:** `dist`
+3. Add env vars: `VITE_API_URL=https://your-render-url.onrender.com/api` and `VITE_WS_URL=https://your-render-url.onrender.com`
+
+### After deploy
+- Update `CLIENT_URL` on Render to your Vercel URL
+- Redeploy server
+
+### Auto-deploy with GitHub Actions
+Set these secrets in GitHub repo settings:
+- `RENDER_DEPLOY_HOOK_URL` — from Render dashboard
+- `VERCEL_TOKEN` — from Vercel account settings
+- `VITE_API_URL` — your Render backend URL + /api
+- `VITE_WS_URL` — your Render backend URL
+
+---
 
 ## Tech Stack
 
-| Layer | Tech |
+| Layer | Technology |
 |---|---|
-| Frontend | React 18 + TypeScript |
+| Frontend framework | React 18 + TypeScript |
 | Rich text | TipTap v2 |
 | Styling | Tailwind CSS v3 |
-| Build | Vite 5 |
+| Build tool | Vite 5 |
 | Local DB | Dexie (IndexedDB) |
-| State | Zustand |
-| WebSocket client | Socket.IO-client |
-| Backend | Node.js + Express + TypeScript |
-| WebSocket server | Socket.IO |
-| Database | PostgreSQL 16 (Neon) |
-| Auth | JWT (access 7d + refresh 30d) |
+| State | Zustand 4 |
+| WebSocket client | Socket.IO 4 |
+| Backend | Node.js 20 + Express + TypeScript |
+| Database | PostgreSQL 16 |
+| Auth | JWT (7d access + 30d refresh) |
+| Container | Docker + Nginx |
 
-## Scalability Discussion
-
-At 1M+ users, the following optimizations apply:
-- **Redis** — cache hot notes, pub/sub for cross-server WebSocket events
-- **Horizontal scaling** — stateless API servers behind load balancer
-- **WebSocket gateway** — dedicated Socket.IO cluster with Redis adapter
-- **Kafka** — event streaming for operation log at scale
-- **DB partitioning** — shard `notes` and `operations` by `user_id`
-- **CDN** — static assets, edge caching for read-heavy endpoints
+---
 
 ## Project Structure
 
 ```
 SyncSphere/
-├── client/src/
-│   ├── components/
-│   │   ├── layout/Sidebar.tsx      # nav, folders, trash, sync dashboard
-│   │   ├── notes/NoteEditor.tsx    # TipTap rich text editor
-│   │   ├── notes/NoteList.tsx      # note list with search
-│   │   └── sync/SyncIndicator.tsx  # sync status badge
-│   ├── pages/
-│   │   ├── AuthPage.tsx
-│   │   ├── WorkspacePage.tsx       # main shell, view routing
-│   │   ├── TrashPage.tsx           # deleted notes + restore
-│   │   ├── SyncDashboard.tsx       # device/sync status
-│   │   └── HistoryPage.tsx         # operation log / time travel
-│   ├── sync/
-│   │   ├── syncEngine.ts           # push/pull orchestration
-│   │   ├── offlineQueue.ts         # pending op queue + backoff
-│   │   └── conflictResolver.ts     # field-level merge logic
-│   ├── storage/db.ts               # Dexie IndexedDB schema
-│   ├── websocket/socketClient.ts   # Socket.IO client wrapper
-│   └── state/                      # Zustand stores
-└── server/src/
-    ├── services/
-    │   ├── sync.service.ts         # core sync + conflict resolution
-    │   ├── notes.service.ts        # CRUD + operation logging
-    │   └── auth.service.ts         # JWT + device tracking
-    ├── websocket/gateway.ts        # Socket.IO: presence, cursors
-    └── db/schema.sql               # full PostgreSQL schema
+├── .github/workflows/         # CI + deploy
+├── client/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── layout/Sidebar.tsx
+│   │   │   ├── notes/NoteEditor.tsx   # TipTap, tags, presence
+│   │   │   ├── notes/NoteList.tsx     # Tag filter chips
+│   │   │   ├── notes/TagInput.tsx     # Chip tag input
+│   │   │   └── sync/
+│   │   │       ├── SyncIndicator.tsx
+│   │   │       └── PresenceAvatars.tsx
+│   │   ├── hooks/useNotes.ts
+│   │   ├── hooks/useSync.ts
+│   │   ├── pages/
+│   │   │   ├── AuthPage.tsx
+│   │   │   ├── WorkspacePage.tsx
+│   │   │   ├── TrashPage.tsx
+│   │   │   ├── SyncDashboard.tsx
+│   │   │   └── HistoryPage.tsx
+│   │   ├── services/api.ts
+│   │   ├── state/authStore.ts
+│   │   ├── state/notesStore.ts
+│   │   ├── storage/db.ts              # Dexie IndexedDB
+│   │   ├── sync/
+│   │   │   ├── syncEngine.ts
+│   │   │   ├── offlineQueue.ts        # Backoff-aware drain
+│   │   │   └── conflictResolver.ts
+│   │   ├── types/index.ts
+│   │   └── websocket/socketClient.ts
+│   ├── vercel.json
+│   └── package.json
+├── server/
+│   ├── src/
+│   │   ├── controllers/
+│   │   ├── services/
+│   │   ├── middleware/auth.ts
+│   │   ├── db/index.ts
+│   │   ├── db/schema.sql
+│   │   ├── routes/index.ts
+│   │   ├── websocket/gateway.ts
+│   │   └── index.ts
+│   └── package.json
+├── docker/
+│   ├── Dockerfile.client
+│   └── Dockerfile.server
+├── docker-compose.yml
+├── render.yaml
+└── README.md
 ```

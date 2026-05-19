@@ -27,24 +27,33 @@ services:
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgresql://syncsphere:syncsphere@postgres:5432/syncsphere
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min-32-chars}
       JWT_EXPIRES_IN: 7d
-      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-change-refresh-in-production}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-change-refresh-in-production-min-32-chars}
       REFRESH_TOKEN_EXPIRES_IN: 30d
       CLIENT_URL: http://localhost:5173
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:3001/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   client:
     build:
       context: ./client
       dockerfile: ../docker/Dockerfile.client
+      args:
+        VITE_API_URL: http://localhost:3001/api
+        VITE_WS_URL: http://localhost:3001
     ports:
       - '5173:80'
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
