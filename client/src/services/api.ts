@@ -88,3 +88,12 @@ export const syncWithServer = (body: unknown) =>
 
 export const getSyncStatus = () =>
   fetch(`${API_BASE}/sync/status`, { headers: headers() }).then(handle<unknown>);
+
+export const deleteFolder = (id: string) =>
+  fetch(`${API_BASE}/folders/${id}`, { method: 'DELETE', headers: headers() }).then(handle<{ success: boolean }>);
+
+export const getSyncStatus = () =>
+  fetch(`${API_BASE}/sync/status`, { headers: headers() }).then(handle<any>);
+
+export const getOperationHistory = (noteId: string) =>
+  fetch(`${API_BASE}/sync/history/${noteId}`, { headers: headers() }).then(handle<{ operations: any[] }>);
