@@ -10,11 +10,18 @@ export const PresenceAvatars: React.FC<Props> = ({ noteId }) => {
   const [users, setUsers] = useState<PresenceUser[]>([]);
 
   useEffect(() => {
-    if (!noteId) { setUsers([]); return; }
+    if (!noteId) {
+      setUsers([]);
+      return;
+    }
+
     const unsub = socketClient.onPresenceUpdate((data) => {
       if (data.noteId === noteId) setUsers(data.users);
     });
-    return () => unsub();
+
+    return () => {
+      unsub();
+    };
   }, [noteId]);
 
   if (users.length <= 1) return null; // Only show when others are present

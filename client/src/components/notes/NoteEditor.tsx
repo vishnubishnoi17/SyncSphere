@@ -26,8 +26,11 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
   const [title, setTitle] = useState('');
   const [typingIndicator, setTypingIndicator] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const remoteTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevNoteId = useRef<string | null>(null);
+  const activeNoteRef = useRef<Note | null>(null);
   const loading = useRef(false);
   const isTyping = useRef(false);
 
@@ -48,57 +51,110 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
     },
   });
 
+  const noteId = note?.id ?? null;
+
   useEffect(() => {
-    if (!note || !editor) return;
-    if (prevNoteId.current && prevNoteId.current !== note.id) {
+    activeNoteRef.current = note;
+  }, [note]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (isTyping.current && prevNoteId.current) {
+        socketClient.sendTypingStop(prevNoteId.current);
+      }
+      if (localTypingTimer.current) clearTimeout(localTypingTimer.current);
+      if (remoteTypingTimer.current) clearTimeout(remoteTypingTimer.current);
+      if (loadingTimer.current) clearTimeout(loadingTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!noteId || !editor) return;
+
+    const activeNote = activeNoteRef.current;
+    if (!activeNote || activeNote.id !== noteId) return;
+
+    if (prevNoteId.current && prevNoteId.current !== noteId) {
       socketClient.leaveNote(prevNoteId.current);
     }
+
     loading.current = true;
-    setTitle(note.title);
-    editor.commands.setContent(note.content || '');
-    setTimeout(() => { loading.current = false; }, 80);
-    socketClient.joinNote(note.id);
-    prevNoteId.current = note.id;
+    setTitle(activeNote.title);
+    editor.commands.setContent(activeNote.content || '');
+
+    if (loadingTimer.current) clearTimeout(loadingTimer.current);
+    loadingTimer.current = setTimeout(() => {
+      loading.current = false;
+      loadingTimer.current = null;
+    }, 80);
+
+    socketClient.joinNote(noteId);
+    prevNoteId.current = noteId;
     setTypingIndicator(null);
-  }, [note?.id]); // eslint-disable-line
+
+    return () => {
+      socketClient.leaveNote(noteId);
+      if (loadingTimer.current) {
+        clearTimeout(loadingTimer.current);
+        loadingTimer.current = null;
+      }
+      loading.current = false;
+      if (prevNoteId.current === noteId) {
+        prevNoteId.current = null;
+      }
+    };
+  }, [editor, noteId]);
 
   // Listen for remote typing indicators
   useEffect(() => {
-    if (!note) return;
+    if (!noteId) return;
     const unsub = socketClient.onRemoteTyping((data) => {
       if (data.typing) {
         setTypingIndicator(data.userName || 'Someone');
-        clearTimeout(typingTimer.current!);
-        typingTimer.current = setTimeout(() => setTypingIndicator(null), 3000);
+        if (remoteTypingTimer.current) clearTimeout(remoteTypingTimer.current);
+        remoteTypingTimer.current = setTimeout(() => {
+          setTypingIndicator(null);
+          remoteTypingTimer.current = null;
+        }, 3000);
       } else {
         setTypingIndicator(null);
       }
     });
-    return () => unsub();
-  }, [note?.id]); // eslint-disable-line
+    return () => {
+      unsub();
+      if (remoteTypingTimer.current) {
+        clearTimeout(remoteTypingTimer.current);
+        remoteTypingTimer.current = null;
+      }
+    };
+  }, [noteId]);
 
   // Listen for remote edits
   useEffect(() => {
-    if (!note) return;
+    if (!noteId) return;
     const unsub = socketClient.onRemoteEdit((data) => {
-      if (data.noteId === note?.id && editor && !loading.current) {
+      if (data.noteId === noteId && editor && !loading.current) {
         // Reload note content from store on remote edit
         // (the sync engine will pull and upsert; this just signals the user)
         console.log('[WS] Remote edit received for', data.noteId);
       }
     });
-    return () => unsub();
-  }, [note?.id, editor]); // eslint-disable-line
+    return () => {
+      unsub();
+    };
+  }, [noteId, editor]);
 
   const handleTyping = useCallback((noteId: string) => {
     if (!isTyping.current) {
       isTyping.current = true;
       socketClient.sendTypingStart(noteId);
     }
-    clearTimeout(typingTimer.current!);
-    typingTimer.current = setTimeout(() => {
+    if (localTypingTimer.current) clearTimeout(localTypingTimer.current);
+    localTypingTimer.current = setTimeout(() => {
       isTyping.current = false;
       socketClient.sendTypingStop(noteId);
+      localTypingTimer.current = null;
     }, 2000);
   }, []);
 

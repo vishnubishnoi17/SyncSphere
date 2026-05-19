@@ -1,10 +1,12 @@
 import React from 'react';
 import { useNotesStore } from '../../state/notesStore';
-import { useSync } from '../../hooks/useSync';
+import { syncEngine } from '../../sync/syncEngine';
 
 export const SyncIndicator: React.FC = () => {
   const { syncStatus, lastSyncAt } = useNotesStore();
-  const { triggerSync } = useSync();
+  const triggerSync = () => {
+    syncEngine.triggerSync().catch(console.error);
+  };
 
   const statusMap = {
     idle: { color: 'text-green-400', label: 'Synced', dot: 'bg-green-400' },

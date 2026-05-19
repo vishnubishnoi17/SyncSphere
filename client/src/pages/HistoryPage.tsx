@@ -12,6 +12,24 @@ interface Operation {
   device_name?: string;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isOperation = (value: unknown): value is Operation => {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.id === 'string' &&
+    typeof value.operation_type === 'string' &&
+    isRecord(value.payload) &&
+    typeof value.timestamp === 'string' &&
+    typeof value.conflict === 'boolean' &&
+    (value.base_version === undefined || typeof value.base_version === 'number') &&
+    (value.result_version === undefined || typeof value.result_version === 'number') &&
+    (value.device_name === undefined || typeof value.device_name === 'string')
+  );
+};
+
 interface Props {
   noteId: string;
   noteTitle: string;
@@ -23,10 +41,21 @@ export const HistoryPage: React.FC<Props> = ({ noteId, noteTitle, onClose }) => 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
+    setLoading(true);
     api.getOperationHistory(noteId)
-      .then(({ operations }) => setOps(operations))
+      .then(({ operations }) => {
+        if (!cancelled) setOps(operations.filter(isOperation));
+      })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [noteId]);
 
   const opColors: Record<string, string> = {
