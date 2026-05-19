@@ -62,18 +62,23 @@ const applyCreateOp = async (userId: string, deviceId: string, op: SyncOperation
   const p = op.payload;
   const existing = await query('SELECT id FROM notes WHERE id = $1', [op.noteId || op.id]);
   if (existing.rows.length > 0) return; // idempotent
+  const folderId = (p.folderId as string | null | undefined) ?? (p.folder_id as string | null | undefined) ?? null;
+  const isStarred = (p.isStarred as boolean | undefined) ?? (p.is_starred as boolean | undefined) ?? false;
+  const isPinned = (p.isPinned as boolean | undefined) ?? (p.is_pinned as boolean | undefined) ?? false;
 
   await query(
-    `INSERT INTO notes (id, user_id, folder_id, title, content, tags, version)
-     VALUES ($1, $2, $3, $4, $5, $6, 1)
+    `INSERT INTO notes (id, user_id, folder_id, title, content, tags, is_starred, is_pinned, version)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
      ON CONFLICT (id) DO NOTHING`,
     [
       op.noteId || op.id,
       userId,
-      (p.folderId as string) || null,
+      folderId,
       (p.title as string) || 'Untitled',
       (p.content as string) || '',
       (p.tags as string[]) || [],
+      isStarred,
+      isPinned,
     ]
   );
 

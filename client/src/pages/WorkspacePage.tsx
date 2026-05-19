@@ -11,15 +11,15 @@ import { useSync } from '../hooks/useSync';
 import { useAuthStore } from '../state/authStore';
 import { useNotesStore } from '../state/notesStore';
 import { socketClient } from '../websocket/socketClient';
-import { ConflictSimulator } from './ConflictSimulator';
+import { clearLocalWorkspaceData } from '../storage/db';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'http://localhost:3001';
 
-type View = 'notes' | 'trash' | 'sync' | 'demo';
+type View = 'notes' | 'trash' | 'sync';
 
 export const WorkspacePage: React.FC = () => {
-  const { accessToken } = useAuthStore();
-  const { activeFolderId } = useNotesStore();
+  const { accessToken, logout } = useAuthStore();
+  const { reset } = useNotesStore();
   const { notes, folders, activeNoteId, isLoading, loadFolders, refreshFromServer } = useNotes();
   const [view, setView] = useState<View>('notes');
   const [historyNoteId, setHistoryNoteId] = useState<string | null>(null);
@@ -34,13 +34,19 @@ export const WorkspacePage: React.FC = () => {
     return () => socketClient.disconnect();
   }, [accessToken]); // eslint-disable-line
 
-  // Filter notes for starred view
-  const filteredNotes = activeFolderId === '__starred__'
-    ? notes.filter(n => n.is_starred)
-    : notes;
+  const handleShowNotes = () => {
+    setHistoryNoteId(null);
+    setView('notes');
+  };
 
-  const activeNote = filteredNotes.find(n => n.id === activeNoteId) ||
-    notes.find(n => n.id === activeNoteId) || null;
+  const handleLogout = async () => {
+    socketClient.disconnect();
+    await clearLocalWorkspaceData();
+    reset();
+    logout();
+  };
+
+  const activeNote = notes.find(n => n.id === activeNoteId) || null;
 
   const historyNote = historyNoteId ? notes.find(n => n.id === historyNoteId) || null : null;
 
@@ -48,9 +54,10 @@ export const WorkspacePage: React.FC = () => {
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
       <Sidebar
         folders={folders}
-        onShowTrash={() => setView('trash')}
-        onShowSyncDash={() => setView('sync')}
-        onShowDemo={() => setView('demo')}
+        onShowNotes={handleShowNotes}
+        onShowTrash={() => { setHistoryNoteId(null); setView('trash'); }}
+        onShowSyncDash={() => { setHistoryNoteId(null); setView('sync'); }}
+        onLogout={handleLogout}
         view={view}
       />
 
@@ -58,13 +65,9 @@ export const WorkspacePage: React.FC = () => {
         <TrashPage />
       ) : view === 'sync' ? (
         <SyncDashboard />
-      ) : view === 'demo' ? (
-        <div className="flex-1 overflow-hidden">
-          <ConflictSimulator onClose={() => setView('notes')} />
-        </div>
       ) : historyNoteId && historyNote ? (
         <>
-          <NoteList notes={filteredNotes} isLoading={isLoading} />
+          <NoteList notes={notes} isLoading={isLoading} />
           <div className="flex-1 flex flex-col min-w-0">
             <div className="flex items-center justify-end px-4 py-2 border-b border-gray-800/60">
               <SyncIndicator />
@@ -78,7 +81,7 @@ export const WorkspacePage: React.FC = () => {
         </>
       ) : (
         <>
-          <NoteList notes={filteredNotes} isLoading={isLoading} />
+          <NoteList notes={notes} isLoading={isLoading} />
           <div className="flex-1 flex flex-col min-w-0">
             <div className="flex items-center justify-end px-4 py-2 border-b border-gray-800/60">
               <SyncIndicator />

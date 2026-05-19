@@ -83,9 +83,10 @@ class SyncEngine {
   private async performSync(): Promise<SyncEngineResult> {
     if (!this.callbacks) throw new Error('SyncEngine not initialized');
 
-    const lastSyncAt = await getSyncMeta('lastSyncAt');
     const deviceId = this.callbacks.getDeviceId();
-    const pendingOps = await getDrainableOps();
+    const lastSyncKey = `lastSyncAt:${deviceId}`;
+    const lastSyncAt = await getSyncMeta(lastSyncKey);
+    const pendingOps = (await getDrainableOps()).filter((op) => op.deviceId === deviceId);
 
     const body = {
       deviceId,
@@ -156,7 +157,7 @@ class SyncEngine {
     }
 
     // Update sync timestamp
-    await setSyncMeta('lastSyncAt', result.newSyncAt);
+    await setSyncMeta(lastSyncKey, result.newSyncAt);
 
     // Handle conflict resolution via field-level merge
     for (const conflicted of result.conflictedOps) {

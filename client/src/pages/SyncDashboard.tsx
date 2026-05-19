@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import * as api from '../services/api';
 import { db } from '../storage/db';
+import { useAuthStore } from '../state/authStore';
 
 interface SyncStatus {
   devices: Array<{
@@ -15,6 +16,8 @@ interface SyncStatus {
 }
 
 export const SyncDashboard: React.FC = () => {
+  const userId = useAuthStore((state) => state.user?.id);
+  const deviceId = useAuthStore((state) => state.deviceId);
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [pendingOps, setPendingOps] = useState(0);
   const [totalNotes, setTotalNotes] = useState(0);
@@ -25,9 +28,9 @@ export const SyncDashboard: React.FC = () => {
       try {
         const s = await api.getSyncStatus() as SyncStatus;
         setStatus(s);
-        const ops = await db.pendingOps.count();
+        const ops = deviceId ? await db.pendingOps.where('deviceId').equals(deviceId).count() : 0;
         setPendingOps(ops);
-        const notes = await db.notes.filter(n => !n.deleted).count();
+        const notes = userId ? await db.notes.where('user_id').equals(userId).and(n => !n.deleted).count() : 0;
         setTotalNotes(notes);
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
@@ -35,10 +38,10 @@ export const SyncDashboard: React.FC = () => {
     load();
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [deviceId, userId]);
 
   const StatCard: React.FC<{ label: string; value: string | number; sub?: string; color?: string }> = ({ label, value, sub, color }) => (
-    <div className="bg-gray-900 border border-gray-800/60 rounded-xl p-4">
+    <div className="bg-gray-900 border border-gray-800/60 rounded-xl p-4 shadow-sm shadow-black/20">
       <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{label}</p>
       <p className={`text-2xl font-bold mt-1 ${color || 'text-white'}`}>{value}</p>
       {sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
@@ -56,7 +59,7 @@ export const SyncDashboard: React.FC = () => {
       <div className="max-w-3xl mx-auto">
         <div className="mb-6">
           <h2 className="text-xl font-bold text-white">Sync Dashboard</h2>
-          <p className="text-sm text-gray-500 mt-1">Real-time view of synchronization state across all devices</p>
+          <p className="text-sm text-gray-500 mt-1">Account-scoped sync health, local queue, and active device sessions.</p>
         </div>
 
         {/* Stats */}
@@ -94,8 +97,8 @@ export const SyncDashboard: React.FC = () => {
               <p>Source of truth</p>
             </div>
           </div>
-          <div className="mt-3 text-xs text-gray-600">
-            Conflict resolution strategy: <span className="text-indigo-400">Field-level merge</span> — title and content resolved independently. Longer content wins. Version vectors track causality.
+          <div className="mt-3 text-xs text-gray-600 leading-relaxed">
+            Conflict resolution strategy: <span className="text-indigo-400">field-level merge</span>. Local changes are queued offline, replayed safely, and pulled back into this account only.
           </div>
         </div>
 

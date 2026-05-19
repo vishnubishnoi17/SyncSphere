@@ -85,3 +85,14 @@ export const incrementOpRetry = async (opId: string): Promise<void> => {
 export const clearPendingOps = async (opIds: string[]): Promise<void> => {
   await db.pendingOps.bulkDelete(opIds);
 };
+
+export const clearLocalWorkspaceData = async (): Promise<void> => {
+  await db.transaction('rw', db.notes, db.pendingOps, db.folders, db.syncMeta, async () => {
+    await Promise.all([
+      db.notes.clear(),
+      db.pendingOps.clear(),
+      db.folders.clear(),
+      db.syncMeta.clear(),
+    ]);
+  });
+};

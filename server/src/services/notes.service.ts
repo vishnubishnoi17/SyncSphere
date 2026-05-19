@@ -5,7 +5,12 @@ export interface CreateNoteInput {
   title?: string;
   content?: string;
   folderId?: string;
+  folder_id?: string;
   tags?: string[];
+  isStarred?: boolean;
+  is_starred?: boolean;
+  isPinned?: boolean;
+  is_pinned?: boolean;
 }
 
 export interface UpdateNoteInput {
@@ -49,11 +54,14 @@ export const createNote = async (
   input: CreateNoteInput
 ) => {
   const id = uuidv4();
+  const folderId = input.folderId ?? input.folder_id ?? null;
+  const isStarred = input.isStarred ?? input.is_starred ?? false;
+  const isPinned = input.isPinned ?? input.is_pinned ?? false;
   const result = await query(
-    `INSERT INTO notes (id, user_id, folder_id, title, content, tags, version)
-     VALUES ($1, $2, $3, $4, $5, $6, 1)
+    `INSERT INTO notes (id, user_id, folder_id, title, content, tags, is_starred, is_pinned, version)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
      RETURNING *`,
-    [id, userId, input.folderId || null, input.title || 'Untitled', input.content || '', input.tags || []]
+    [id, userId, folderId, input.title || 'Untitled', input.content || '', input.tags || [], isStarred, isPinned]
   );
   const note = result.rows[0];
 

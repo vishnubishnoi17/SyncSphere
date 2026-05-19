@@ -9,16 +9,26 @@ interface Props {
 }
 
 export const NoteList: React.FC<Props> = ({ notes, isLoading }) => {
-  const { activeNoteId, searchQuery, setActiveNote, setSearchQuery } = useNotesStore();
+  const { activeNoteId, activeFolderId, searchQuery, setActiveNote, setSearchQuery } = useNotesStore();
   const { createNote } = useNotes();
   const [filterTag, setFilterTag] = useState<string | null>(null);
 
   const allTags = Array.from(new Set(notes.flatMap((n) => n.tags || []))).sort();
   const filtered = filterTag ? notes.filter((n) => n.tags?.includes(filterTag)) : notes;
+  const listTitle = activeFolderId === '__starred__' ? 'Starred' : activeFolderId ? 'Folder Notes' : 'All Notes';
 
   return (
     <div className="w-72 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
-      <div className="px-3 py-3 border-b border-gray-800 space-y-2">
+      <div className="px-4 py-3 border-b border-gray-800">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <h2 className="text-sm font-semibold text-white">{listTitle}</h2>
+            <p className="text-xs text-gray-600">{filtered.length} {filtered.length === 1 ? 'note' : 'notes'}{filterTag && " tagged #" + filterTag}</p>
+          </div>
+          <button onClick={() => { void createNote(); }} className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-colors" title="New note">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          </button>
+        </div>
         <div className="relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -37,21 +47,16 @@ export const NoteList: React.FC<Props> = ({ notes, isLoading }) => {
           </div>
         )}
       </div>
-      <div className="px-3 py-2 border-b border-gray-800">
-        <button onClick={() => createNote()} className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium py-2 rounded-lg transition-colors">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-          New Note
-        </button>
-      </div>
-      <div className="px-4 py-1.5">
-        <span className="text-xs text-gray-600">{filtered.length} {filtered.length === 1 ? 'note' : 'notes'}{filterTag && " tagged #" + filterTag}</span>
-      </div>
       <div className="flex-1 overflow-y-auto">
         {isLoading && <div className="flex items-center justify-center py-12"><div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>}
         {!isLoading && filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-            <p className="text-gray-500 text-sm mb-1">{searchQuery ? 'No matching notes' : filterTag ? "No notes tagged #" + filterTag : 'No notes yet'}</p>
-            {!searchQuery && !filterTag && <button onClick={() => createNote()} className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors">Create your first note</button>}
+            <div className="w-12 h-12 rounded-xl bg-gray-950 border border-gray-800 flex items-center justify-center mb-3">
+              <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M12 4v16m8-8H4" /></svg>
+            </div>
+            <p className="text-gray-400 text-sm font-medium mb-1">{searchQuery ? 'No matching notes' : filterTag ? "No notes tagged #" + filterTag : activeFolderId === '__starred__' ? 'No starred notes yet' : 'No notes yet'}</p>
+            <p className="text-xs text-gray-600 mb-3">{activeFolderId === '__starred__' ? 'Star a note to keep it here.' : 'Create a note and it will sync when you are online.'}</p>
+            {!searchQuery && !filterTag && activeFolderId !== '__starred__' && <button onClick={() => { void createNote(); }} className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors">Create your first note</button>}
           </div>
         )}
         {filtered.map((note) => (

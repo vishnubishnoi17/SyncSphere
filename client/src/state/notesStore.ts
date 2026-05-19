@@ -21,6 +21,7 @@ interface NotesStore {
   setLoading: (v: boolean) => void;
   setSyncStatus: (s: 'idle' | 'syncing' | 'error') => void;
   setLastSyncAt: (ts: string) => void;
+  reset: () => void;
 }
 
 export const useNotesStore = create<NotesStore>((set) => ({
@@ -48,4 +49,14 @@ export const useNotesStore = create<NotesStore>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
   setSyncStatus: (syncStatus) => set({ syncStatus }),
   setLastSyncAt: (lastSyncAt) => set({ lastSyncAt }),
+  reset: () => set({
+    notes: [],
+    folders: [],
+    activeNoteId: null,
+    searchQuery: '',
+    activeFolderId: null,
+    isLoading: false,
+    syncStatus: 'idle',
+    lastSyncAt: null,
+  }),
 }));

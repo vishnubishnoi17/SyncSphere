@@ -29,7 +29,7 @@ export const useSync = () => {
     });
 
     // Load last sync timestamp from DB
-    getSyncMeta('lastSyncAt').then((ts) => {
+    getSyncMeta(`lastSyncAt:${deviceId}`).then((ts) => {
       if (ts) setLastSyncAt(ts);
     });
 
