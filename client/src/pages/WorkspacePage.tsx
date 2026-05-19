@@ -11,10 +11,11 @@ import { useSync } from '../hooks/useSync';
 import { useAuthStore } from '../state/authStore';
 import { useNotesStore } from '../state/notesStore';
 import { socketClient } from '../websocket/socketClient';
+import { ConflictSimulator } from './ConflictSimulator';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'http://localhost:3001';
 
-type View = 'notes' | 'trash' | 'sync';
+type View = 'notes' | 'trash' | 'sync' | 'demo';
 
 export const WorkspacePage: React.FC = () => {
   const { accessToken } = useAuthStore();
@@ -49,6 +50,7 @@ export const WorkspacePage: React.FC = () => {
         folders={folders}
         onShowTrash={() => setView('trash')}
         onShowSyncDash={() => setView('sync')}
+        onShowDemo={() => setView('demo')}
         view={view}
       />
 
@@ -56,6 +58,10 @@ export const WorkspacePage: React.FC = () => {
         <TrashPage />
       ) : view === 'sync' ? (
         <SyncDashboard />
+      ) : view === 'demo' ? (
+        <div className="flex-1 overflow-hidden">
+          <ConflictSimulator onClose={() => setView('notes')} />
+        </div>
       ) : historyNoteId && historyNote ? (
         <>
           <NoteList notes={filteredNotes} isLoading={isLoading} />
