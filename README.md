@@ -353,7 +353,7 @@ VITE_WS_URL=http://localhost:3001
 1. New Web Service → connect GitHub repo
 2. Settings:
    - **Root Directory:** `server`
-   - **Build command:** `npm install && npm run build`
+   - **Build command:** `npm ci --include=dev && npm run build`
    - **Start command:** `node dist/index.js`
    - **Health check path:** `/health`
 3. Environment variables to set in Render dashboard:
