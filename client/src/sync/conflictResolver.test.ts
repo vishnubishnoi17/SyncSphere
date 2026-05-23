@@ -137,6 +137,13 @@ describe('resolveConflict — boolean fields (OR merge)', () => {
     const { resolvedNote } = resolveConflict(local, server);
     expect(resolvedNote.is_pinned).toBe(true);
   });
+
+  it('is_pinned is false only when neither device pinned it', () => {
+    const local = makeNote({ is_pinned: false });
+    const server = makeNote({ is_pinned: false });
+    const { resolvedNote } = resolveConflict(local, server);
+    expect(resolvedNote.is_pinned).toBe(false);
+  });
 });
 
 // ─── version handling ──────────────────────────────────────────────────────────
@@ -160,8 +167,8 @@ describe('resolveConflict — ConflictInfo metadata', () => {
     const local = makeNote({ title: 'Local' });
     const server = makeNote({ title: 'Server version with more words' });
     const result = resolveConflict(local, server);
-    expect(result.localNote.title).toBe('Local');
-    expect(result.serverNote.title).toBe('Server version with more words');
+    expect(result.localNote).toEqual(local);
+    expect(result.serverNote).toEqual(server);
   });
 
   it('marks resolved note as synced', () => {
