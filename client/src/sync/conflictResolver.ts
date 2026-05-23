@@ -1,6 +1,7 @@
 import type { Note } from '../types';
 
 export type ConflictInfo = {
+  noteId: string;
   resolvedNote: Note;
   strategy: 'field-level-merge';
   localNote: Note;
@@ -26,18 +27,19 @@ export function resolveConflict(local: Note, server: Note): ConflictInfo {
 
   const resolvedNote: Note = {
     ...server,
-    ...local, // base structure merges correctly
+    ...local,
     title,
     content,
     tags,
     is_starred,
     is_pinned,
-    version: server.version, // use server version
+    version: server.version,
     _syncStatus: 'synced',
     _isDirty: false
   };
 
   return {
+    noteId: local.id,
     resolvedNote,
     strategy: 'field-level-merge',
     localNote: local,
