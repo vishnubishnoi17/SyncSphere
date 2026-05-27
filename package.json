@@ -7,7 +7,11 @@
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
-    "build": "cd client && npm run build && cd ../server && npm run build",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "npm run build --prefix client",
+    "build:server": "npm run build --prefix server",
+    "test": "npm run test:client",
+    "test:client": "npm test --prefix client",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down"
   },

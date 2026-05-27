@@ -10,6 +10,26 @@ const required = (key: string): string => {
 
 const optional = (key: string, fallback: string): string => process.env[key] || fallback;
 
+const optionalNumber = (key: string, fallback: number): number => {
+  const raw = process.env[key];
+  if (!raw) return fallback;
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`${key} must be a positive integer`);
+  }
+  return parsed;
+};
+
+const optionalBoolean = (key: string, fallback: boolean): boolean => {
+  const raw = process.env[key];
+  if (!raw) return fallback;
+
+  if (['true', '1', 'yes'].includes(raw.toLowerCase())) return true;
+  if (['false', '0', 'no'].includes(raw.toLowerCase())) return false;
+  throw new Error(`${key} must be true or false`);
+};
+
 const parseOrigins = (value: string): string[] =>
   value
     .split(',')
@@ -33,9 +53,9 @@ assertProductionSecret('REFRESH_TOKEN_SECRET', refreshTokenSecret);
 
 export const env = {
   NODE_ENV: optional('NODE_ENV', 'development'),
-  PORT: Number.parseInt(optional('PORT', '3001'), 10),
+  PORT: optionalNumber('PORT', 3001),
   DATABASE_URL: required('DATABASE_URL'),
-  DATABASE_SSL: optional('DATABASE_SSL', process.env.NODE_ENV === 'production' ? 'true' : 'false'),
+  DATABASE_SSL: optionalBoolean('DATABASE_SSL', process.env.NODE_ENV === 'production'),
   JWT_SECRET: jwtSecret,
   JWT_EXPIRES_IN: optional('JWT_EXPIRES_IN', '7d'),
   REFRESH_TOKEN_SECRET: refreshTokenSecret,

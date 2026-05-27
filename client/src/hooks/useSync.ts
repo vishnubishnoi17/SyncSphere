@@ -3,8 +3,7 @@ import { syncEngine } from '../sync/syncEngine';
 import { useAuthStore } from '../state/authStore';
 import { useNotesStore } from '../state/notesStore';
 import { getSyncMeta } from '../storage/db';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { API_BASE } from '../config/env';
 
 export const useSync = () => {
   const { accessToken, deviceId } = useAuthStore();

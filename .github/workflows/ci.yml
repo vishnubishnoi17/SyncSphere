@@ -39,6 +39,10 @@ jobs:
         working-directory: client
         run: npm run build
 
+      - name: Test client
+        working-directory: client
+        run: npm test
+
       - name: Build server
         working-directory: server
         env:

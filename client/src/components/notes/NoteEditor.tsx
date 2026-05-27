@@ -16,7 +16,7 @@ interface Props { note: Note | null; onShowHistory?: (noteId: string) => void; }
 
 const Btn: React.FC<{ onClick: () => void; active?: boolean; title: string; children: React.ReactNode }> = ({ onClick, active, title, children }) => (
   <button onClick={onClick} title={title}
-    className={"px-2 py-1 rounded text-xs font-mono transition-colors " + (active ? "bg-indigo-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800")}>
+    className={"px-2.5 py-1.5 rounded-lg text-xs font-mono transition-colors " + (active ? "bg-teal-400 text-slate-950" : "text-slate-400 hover:text-white hover:bg-white/[0.08]")}>
     {children}
   </button>
 );
@@ -167,15 +167,15 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
   }, [updateNote]);
 
   if (!note) return (
-    <div className="flex-1 flex items-center justify-center bg-gray-950">
+    <div className="flex-1 flex items-center justify-center bg-slate-950/70">
       <div className="text-center max-w-sm px-6">
-        <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center shadow-xl shadow-black/30">
-          <svg className="w-8 h-8 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center shadow-xl shadow-black/30">
+          <svg className="w-8 h-8 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </div>
         <p className="text-base font-semibold text-gray-300">No note selected</p>
-        <p className="text-sm text-gray-600 mt-2">Pick a note from the list or create a new one to start writing.</p>
+        <p className="text-sm text-slate-600 mt-2">Pick a note from the list or create a new one to start writing.</p>
       </div>
     </div>
   );
@@ -184,9 +184,9 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
   const chars = editor?.storage.characterCount?.characters() ?? 0;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden bg-slate-950/40">
       {/* Status bar */}
-      <div className="flex items-center gap-2 px-5 py-2 border-b border-gray-800/50">
+      <div className="flex items-center gap-2 px-4 md:px-5 py-2 border-b border-white/10 overflow-x-auto">
         <span className={"flex items-center gap-1.5 text-xs " + (note._syncStatus === 'pending' ? "text-amber-400" : note._syncStatus === 'conflict' ? "text-red-400" : "text-emerald-500")}>
           <span className={"w-1.5 h-1.5 rounded-full " + (note._syncStatus === 'pending' ? "bg-amber-400 animate-pulse" : note._syncStatus === 'conflict' ? "bg-red-400" : "bg-emerald-500")} />
           {note._syncStatus === 'pending' ? 'Saving…' : note._syncStatus === 'conflict' ? 'Conflict resolved' : 'Saved'}
@@ -209,7 +209,7 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
         {onShowHistory && (
           <button onClick={() => onShowHistory(note.id)} className="text-xs text-gray-500 hover:text-indigo-400 transition-colors flex items-center gap-1" title="Version history">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            History
+            <span className="hidden sm:inline">History</span>
           </button>
         )}
         <button onClick={() => updateNote(note.id, { is_starred: !note.is_starred })}
@@ -226,36 +226,36 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
 
       {/* Toolbar */}
       {editor && (
-        <div className="flex items-center gap-0.5 px-4 py-1.5 border-b border-gray-800/50 flex-wrap bg-gray-950/50">
+        <div className="flex items-center gap-1 px-3 md:px-4 py-2 border-b border-white/10 overflow-x-auto bg-slate-950/70">
           <Btn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold"><b>B</b></Btn>
           <Btn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="Italic"><i>I</i></Btn>
           <Btn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title="Strike"><s>S</s></Btn>
           <Btn onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} title="Highlight"><span className="text-yellow-300">▌</span></Btn>
           <Btn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="Inline code">`c`</Btn>
-          <div className="w-px h-4 bg-gray-800 mx-1" />
+          <div className="w-px h-4 bg-white/10 mx-1" />
           <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title="H1">H1</Btn>
           <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="H2">H2</Btn>
           <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title="H3">H3</Btn>
-          <div className="w-px h-4 bg-gray-800 mx-1" />
+          <div className="w-px h-4 bg-white/10 mx-1" />
           <Btn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">• ul</Btn>
           <Btn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="Ordered list">1. ol</Btn>
           <Btn onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive('taskList')} title="Task list">☑ todo</Btn>
-          <div className="w-px h-4 bg-gray-800 mx-1" />
+          <div className="w-px h-4 bg-white/10 mx-1" />
           <Btn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title="Quote">❝</Btn>
           <Btn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title="Code block">{"</>"}</Btn>
-          <div className="w-px h-4 bg-gray-800 mx-1" />
+          <div className="w-px h-4 bg-white/10 mx-1" />
           <Btn onClick={() => editor.chain().focus().undo().run()} title="Undo">↩</Btn>
           <Btn onClick={() => editor.chain().focus().redo().run()} title="Redo">↪</Btn>
         </div>
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-5 md:py-7">
         <input
           value={title}
           onChange={(e) => { setTitle(e.target.value); if (note && editor) scheduleSave(note.id, e.target.value, editor.getHTML()); }}
           placeholder="Note title"
-          className="w-full bg-transparent text-2xl font-bold text-white placeholder-gray-700 focus:outline-none mb-5 block"
+          className="w-full bg-transparent text-2xl sm:text-3xl font-bold text-white placeholder-slate-700 focus:outline-none mb-5 block"
         />
         <EditorContent editor={editor} />
       </div>
@@ -264,7 +264,7 @@ export const NoteEditor: React.FC<Props> = ({ note, onShowHistory }) => {
       <TagInput note={note} />
 
       {/* Footer */}
-      <div className="px-6 py-1.5 border-t border-gray-800/50 flex items-center gap-3 text-xs text-gray-600">
+      <div className="px-4 md:px-6 py-2 border-t border-white/10 flex items-center gap-3 text-xs text-slate-600 overflow-x-auto">
         <span>v{note.version}</span>
         <span>{words}w · {chars}c</span>
         <div className="flex-1" />

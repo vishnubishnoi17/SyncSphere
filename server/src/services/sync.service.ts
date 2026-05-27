@@ -11,7 +11,7 @@ export interface SyncOperation {
 }
 
 export interface SyncRequest {
-  deviceId: string;
+  deviceId?: string;
   lastSyncAt: string | null;
   operations: SyncOperation[];
 }
@@ -24,6 +24,10 @@ export interface SyncResult {
 }
 
 export const processSync = async (userId: string, req: SyncRequest): Promise<SyncResult> => {
+  if (!req.deviceId) {
+    throw new Error('Device id is required for sync');
+  }
+
   const appliedOps: string[] = [];
   const conflictedOps: SyncResult['conflictedOps'] = [];
   const newSyncAt = new Date().toISOString();
@@ -44,7 +48,7 @@ export const processSync = async (userId: string, req: SyncRequest): Promise<Syn
         await applyDeleteOp(userId, req.deviceId, op);
         appliedOps.push(op.id);
       } else if (op.operationType === 'restore') {
-        await applyRestoreOp(userId, op);
+        await applyRestoreOp(userId, req.deviceId, op);
         appliedOps.push(op.id);
       }
     } catch (err) {
@@ -60,9 +64,16 @@ export const processSync = async (userId: string, req: SyncRequest): Promise<Syn
 
 const applyCreateOp = async (userId: string, deviceId: string, op: SyncOperation) => {
   const p = op.payload;
-  const existing = await query('SELECT id FROM notes WHERE id = $1', [op.noteId || op.id]);
-  if (existing.rows.length > 0) return; // idempotent
-  const folderId = (p.folderId as string | null | undefined) ?? (p.folder_id as string | null | undefined) ?? null;
+  const existing = await query('SELECT user_id FROM notes WHERE id = $1', [op.noteId || op.id]);
+  if (existing.rows.length > 0) {
+    if (existing.rows[0].user_id === userId) return; // idempotent replay from the same account
+    throw new Error('Note id already exists');
+  }
+  const folderId = Object.prototype.hasOwnProperty.call(p, 'folderId')
+    ? (p.folderId as string | null)
+    : Object.prototype.hasOwnProperty.call(p, 'folder_id')
+      ? (p.folder_id as string | null)
+      : null;
   const isStarred = (p.isStarred as boolean | undefined) ?? (p.is_starred as boolean | undefined) ?? false;
   const isPinned = (p.isPinned as boolean | undefined) ?? (p.is_pinned as boolean | undefined) ?? false;
 
@@ -73,7 +84,7 @@ const applyCreateOp = async (userId: string, deviceId: string, op: SyncOperation
     [
       op.noteId || op.id,
       userId,
-      folderId,
+      folderId || null,
       (p.title as string) || 'Untitled',
       (p.content as string) || '',
       (p.tags as string[]) || [],
@@ -106,17 +117,20 @@ const applyUpdateOp = async (userId: string, deviceId: string, op: SyncOperation
   const mergedTags = (p.tags as string[]) ?? serverNote.tags;
   const isStarred = (p.isStarred as boolean | undefined) ?? (p.is_starred as boolean | undefined) ?? null;
   const isPinned = (p.isPinned as boolean | undefined) ?? (p.is_pinned as boolean | undefined) ?? null;
-  const folderId = (p.folderId as string | null | undefined) ?? (p.folder_id as string | null | undefined) ?? null;
+  const hasFolderId = Object.prototype.hasOwnProperty.call(p, 'folderId') || Object.prototype.hasOwnProperty.call(p, 'folder_id');
+  const folderId = Object.prototype.hasOwnProperty.call(p, 'folderId')
+    ? (p.folderId as string | null)
+    : (p.folder_id as string | null | undefined);
 
   const result = await query(
     `UPDATE notes
      SET title = $1, content = $2, tags = $3,
          is_starred = COALESCE($4, is_starred),
          is_pinned  = COALESCE($5, is_pinned),
-         folder_id  = COALESCE($6, folder_id),
+         folder_id  = CASE WHEN $6::boolean THEN $7::uuid ELSE folder_id END,
          version    = version + 1,
          updated_at = NOW()
-     WHERE id = $7 AND user_id = $8
+     WHERE id = $8 AND user_id = $9
      RETURNING *`,
     [
       mergedTitle,
@@ -124,7 +138,8 @@ const applyUpdateOp = async (userId: string, deviceId: string, op: SyncOperation
       mergedTags,
       isStarred,
       isPinned,
-      folderId,
+      hasFolderId,
+      folderId || null,
       op.noteId,
       userId,
     ]
@@ -139,19 +154,35 @@ const applyUpdateOp = async (userId: string, deviceId: string, op: SyncOperation
   return { conflict, note: result.rows[0] };
 };
 
-const applyDeleteOp = async (userId: string, _deviceId: string, op: SyncOperation) => {
-  await query(
+const applyDeleteOp = async (userId: string, deviceId: string, op: SyncOperation) => {
+  const result = await query(
     `UPDATE notes SET deleted = TRUE, deleted_at = NOW(), version = version + 1
-     WHERE id = $1 AND user_id = $2`,
+     WHERE id = $1 AND user_id = $2
+     RETURNING version`,
     [op.noteId, userId]
+  );
+  if (result.rows.length === 0) throw new Error('Note not found');
+
+  await query(
+    `INSERT INTO operations (note_id, user_id, device_id, operation_type, payload, base_version, result_version, applied_at)
+     VALUES ($1, $2, $3, 'delete', $4, $5, $6, NOW())`,
+    [op.noteId, userId, deviceId, JSON.stringify(op.payload || {}), op.clientVersion ?? null, result.rows[0].version]
   );
 };
 
-const applyRestoreOp = async (userId: string, op: SyncOperation) => {
-  await query(
+const applyRestoreOp = async (userId: string, deviceId: string, op: SyncOperation) => {
+  const result = await query(
     `UPDATE notes SET deleted = FALSE, deleted_at = NULL, version = version + 1
-     WHERE id = $1 AND user_id = $2`,
+     WHERE id = $1 AND user_id = $2
+     RETURNING version`,
     [op.noteId, userId]
+  );
+  if (result.rows.length === 0) throw new Error('Note not found');
+
+  await query(
+    `INSERT INTO operations (note_id, user_id, device_id, operation_type, payload, base_version, result_version, applied_at)
+     VALUES ($1, $2, $3, 'restore', $4, $5, $6, NOW())`,
+    [op.noteId, userId, deviceId, JSON.stringify(op.payload || {}), op.clientVersion ?? null, result.rows[0].version]
   );
 };
 

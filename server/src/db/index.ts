@@ -3,11 +3,9 @@ import fs from "fs";
 import path from "path";
 import { env } from "../config/env";
 
-const useSsl = env.DATABASE_SSL === "true";
-
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  ssl: useSsl ? { rejectUnauthorized: false } : false,
+  ssl: env.DATABASE_SSL ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

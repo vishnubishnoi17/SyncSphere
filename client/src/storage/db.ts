@@ -79,7 +79,7 @@ export const removeOp = async (opId: string): Promise<void> => {
 
 export const incrementOpRetry = async (opId: string): Promise<void> => {
   const op = await db.pendingOps.get(opId);
-  if (op) await db.pendingOps.update(opId, { retryCount: op.retryCount + 1 });
+  if (op) await db.pendingOps.update(opId, { retryCount: op.retryCount + 1, createdAt: Date.now() });
 };
 
 export const clearPendingOps = async (opIds: string[]): Promise<void> => {

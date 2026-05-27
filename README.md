@@ -372,7 +372,8 @@ Or use the included `render.yaml` for infrastructure-as-code.
 
 ### Frontend → Vercel
 
-1. Import repo → set **Root Directory** to `client`
+1. Import repo. You can leave **Root Directory** at the repository root; the root `vercel.json` builds only `client/`.
+   - If you prefer setting **Root Directory** to `client`, the existing `client/vercel.json` also works.
 2. Environment variables in Vercel dashboard:
 
 ```env
@@ -380,11 +381,12 @@ VITE_API_URL=https://your-render-service.onrender.com/api
 VITE_WS_URL=https://your-render-service.onrender.com
 ```
 
-3. The included `client/vercel.json` handles SPA routing — no changes needed.
+3. The Vercel config handles SPA routing and outputs `client/dist`.
+4. Do not deploy the Express/Socket.IO server to Vercel serverless. Keep the backend on Render or another long-running Node host so WebSockets and PostgreSQL pooling work correctly.
 
 ### GitHub Actions (CI/CD)
 
-- `ci.yml` — builds client + server on every push and PR
+- `ci.yml` — builds client + server and runs client tests on every push and PR
 - `deploy.yml` — triggers Render + Vercel deploy hooks on push to `main`
 
 Optional secrets in repo Settings → Secrets:

@@ -13,9 +13,11 @@ interface Props {
   onShowSyncDash: () => void;
   onLogout: () => void | Promise<void>;
   view: string;
+  className?: string;
+  onNavigate?: () => void;
 }
 
-export const Sidebar: React.FC<Props> = ({ folders, onShowNotes, onShowTrash, onShowSyncDash, onLogout, view }) => {
+export const Sidebar: React.FC<Props> = ({ folders, onShowNotes, onShowTrash, onShowSyncDash, onLogout, view, className = 'flex', onNavigate }) => {
   const { user } = useAuthStore();
   const { activeFolderId, setActiveFolderId } = useNotesStore();
   const { createNote, loadFolders } = useNotes();
@@ -46,21 +48,22 @@ export const Sidebar: React.FC<Props> = ({ folders, onShowNotes, onShowTrash, on
   const selectNotesView = (folderId: string | null) => {
     setActiveFolderId(folderId);
     onShowNotes();
+    onNavigate?.();
   };
 
   const navItem = (label: string, icon: React.ReactNode, onClick: () => void, active: boolean) => (
     <button onClick={onClick}
-      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${active ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800/60'}`}>
+      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-colors ${active ? 'bg-teal-400/15 text-teal-100 ring-1 ring-teal-300/20' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'}`}>
       {icon}{label}
     </button>
   );
 
   return (
-    <div className="w-60 bg-gray-950 border-r border-gray-800/60 flex flex-col shrink-0">
+    <div className={`w-64 bg-slate-950/95 border-r border-white/10 flex-col shrink-0 backdrop-blur-xl ${className}`}>
       {/* Logo */}
-      <div className="px-4 py-4 border-b border-gray-800/60">
+      <div className="px-4 py-4 border-b border-white/10">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-900/40">
+          <div className="w-9 h-9 bg-gradient-to-br from-teal-400 to-amber-300 rounded-xl flex items-center justify-center shadow-lg shadow-teal-950/40">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
@@ -74,8 +77,8 @@ export const Sidebar: React.FC<Props> = ({ folders, onShowNotes, onShowTrash, on
 
       {/* New Note */}
       <div className="px-3 pt-3 pb-1">
-        <button onClick={() => { void createNote().then(onShowNotes); }}
-          className="w-full flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium text-white transition-colors shadow-sm">
+        <button onClick={() => { void createNote().then(() => { onShowNotes(); onNavigate?.(); }); }}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-teal-400 hover:bg-teal-300 rounded-xl text-sm font-semibold text-slate-950 transition-colors shadow-lg shadow-teal-950/30">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
           New Note
         </button>
@@ -95,12 +98,12 @@ export const Sidebar: React.FC<Props> = ({ folders, onShowNotes, onShowTrash, on
         )}
         {navItem('Trash',
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
-          onShowTrash,
+          () => { onShowTrash(); onNavigate?.(); },
           view === 'trash'
         )}
         {navItem('Sync Dashboard',
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
-          onShowSyncDash,
+          () => { onShowSyncDash(); onNavigate?.(); },
           view === 'sync'
         )}
         {/* Folders section */}
@@ -114,14 +117,14 @@ export const Sidebar: React.FC<Props> = ({ folders, onShowNotes, onShowTrash, on
           </div>
 
           {showNewFolder && (
-            <div className="px-2 py-2 bg-gray-900 rounded-lg mx-1 mb-2">
+            <div className="px-2 py-2 bg-white/[0.04] border border-white/10 rounded-xl mx-1 mb-2">
               <input
                 value={folderName}
                 onChange={e => setFolderName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleCreateFolder()}
                 placeholder="Folder name"
                 autoFocus
-                className="w-full bg-gray-800 text-white text-sm px-2 py-1.5 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 mb-2"
+                className="w-full bg-slate-900 text-white text-sm px-2 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-400 mb-2"
               />
               <div className="flex gap-1 mb-2">
                 {COLORS.map(c => (
@@ -131,15 +134,15 @@ export const Sidebar: React.FC<Props> = ({ folders, onShowNotes, onShowTrash, on
                 ))}
               </div>
               <div className="flex gap-1">
-                <button onClick={handleCreateFolder} className="flex-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded py-1 transition-colors">Create</button>
-                <button onClick={() => setShowNewFolder(false)} className="flex-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 rounded py-1 transition-colors">Cancel</button>
+                <button onClick={handleCreateFolder} className="flex-1 text-xs bg-teal-400 hover:bg-teal-300 text-slate-950 rounded-lg py-1 transition-colors">Create</button>
+                <button onClick={() => setShowNewFolder(false)} className="flex-1 text-xs bg-white/[0.06] hover:bg-white/[0.1] text-slate-400 rounded-lg py-1 transition-colors">Cancel</button>
               </div>
             </div>
           )}
 
           {folders.filter(f => f.id !== '__starred__').map(folder => (
             <button key={folder.id} onClick={() => selectNotesView(folder.id)}
-              className={`group w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${activeFolderId === folder.id ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800/60'}`}>
+              className={`group w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-colors ${activeFolderId === folder.id ? 'bg-teal-400/15 text-teal-100 ring-1 ring-teal-300/20' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'}`}>
               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: folder.color }} />
               <span className="truncate flex-1 text-left">{folder.name}</span>
               <button onClick={(e) => handleDeleteFolder(e, folder.id)}
@@ -152,9 +155,9 @@ export const Sidebar: React.FC<Props> = ({ folders, onShowNotes, onShowTrash, on
       </nav>
 
       {/* User */}
-      <div className="px-3 py-3 border-t border-gray-800/60">
+      <div className="px-3 py-3 border-t border-white/10">
         <div className="flex items-center gap-2 px-2">
-          <div className="w-7 h-7 bg-indigo-700 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0">
+          <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-slate-700 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0">
             {user?.name?.[0]?.toUpperCase() || 'U'}
           </div>
           <div className="flex-1 min-w-0">
