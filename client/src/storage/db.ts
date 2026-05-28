@@ -66,7 +66,11 @@ export const markNoteSynced = async (noteId: string): Promise<void> => {
 
 // --- Pending operation helpers ---
 export const enqueueOperation = async (op: Omit<PendingOperation, 'retryCount'>): Promise<void> => {
-  await db.pendingOps.put({ ...op, retryCount: 0 });
+  await db.pendingOps.put({
+    ...op,
+    retryCount: 0,
+    lastAttemptAt: op.lastAttemptAt ?? op.createdAt,
+  });
 };
 
 export const getPendingOps = async (): Promise<PendingOperation[]> => {
@@ -79,7 +83,12 @@ export const removeOp = async (opId: string): Promise<void> => {
 
 export const incrementOpRetry = async (opId: string): Promise<void> => {
   const op = await db.pendingOps.get(opId);
-  if (op) await db.pendingOps.update(opId, { retryCount: op.retryCount + 1, createdAt: Date.now() });
+  if (op) {
+    await db.pendingOps.update(opId, {
+      retryCount: op.retryCount + 1,
+      lastAttemptAt: Date.now(),
+    });
+  }
 };
 
 export const clearPendingOps = async (opIds: string[]): Promise<void> => {

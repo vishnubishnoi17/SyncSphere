@@ -7,11 +7,18 @@ class SocketClient {
   private socket: Socket | null = null;
   private token: string | null = null;
   private activeNoteId: string | null = null;
+  private listeners = new Map<string, Set<SocketCallback>>();
 
   connect(serverUrl: string, token: string) {
-    if (this.socket?.connected) return;
-
     this.token = token;
+    if (this.socket) {
+      this.socket.auth = { token };
+      if (!this.socket.connected) {
+        this.socket.connect();
+      }
+      return;
+    }
+
     this.socket = io(serverUrl, {
       auth: { token },
       reconnection: true,
@@ -33,6 +40,8 @@ class SocketClient {
     this.socket.on('disconnect', (reason) => {
       console.log('[WS] Disconnected:', reason);
     });
+
+    this.attachRegisteredListeners();
   }
 
   disconnect() {
@@ -61,8 +70,7 @@ class SocketClient {
   }
 
   onRemoteEdit(cb: SocketCallback<{ noteId: string; delta: unknown; userId: string; timestamp: string }>) {
-    this.socket?.on('note:remote_edit', cb);
-    return () => this.socket?.off('note:remote_edit', cb);
+    return this.registerListener('note:remote_edit', cb);
   }
 
   // --- Cursor ---
@@ -71,8 +79,7 @@ class SocketClient {
   }
 
   onRemoteCursor(cb: SocketCallback<{ userId: string; socketId: string; cursor: { line: number; ch: number }; color: string }>) {
-    this.socket?.on('cursor:remote', cb);
-    return () => this.socket?.off('cursor:remote', cb);
+    return this.registerListener('cursor:remote', cb);
   }
 
   // --- Typing ---
@@ -85,14 +92,12 @@ class SocketClient {
   }
 
   onRemoteTyping(cb: SocketCallback<{ userId: string; userName: string; typing: boolean }>) {
-    this.socket?.on('typing:remote', cb);
-    return () => this.socket?.off('typing:remote', cb);
+    return this.registerListener('typing:remote', cb);
   }
 
   // --- Presence ---
   onPresenceUpdate(cb: SocketCallback<{ noteId: string; users: PresenceUser[] }>) {
-    this.socket?.on('presence:update', cb);
-    return () => this.socket?.off('presence:update', cb);
+    return this.registerListener('presence:update', cb);
   }
 
   // --- Cross-device sync notification ---
@@ -101,12 +106,36 @@ class SocketClient {
   }
 
   onSyncInvalidate(cb: SocketCallback<{ noteIds: string[]; fromDevice: string }>) {
-    this.socket?.on('sync:invalidate', cb);
-    return () => this.socket?.off('sync:invalidate', cb);
+    return this.registerListener('sync:invalidate', cb);
   }
 
   isConnected() {
     return this.socket?.connected ?? false;
+  }
+
+  private registerListener<T = unknown>(event: string, cb: SocketCallback<T>) {
+    const listeners = this.listeners.get(event) ?? new Set<SocketCallback>();
+    listeners.add(cb as SocketCallback);
+    this.listeners.set(event, listeners);
+    this.socket?.on(event, cb as SocketCallback);
+
+    return () => {
+      listeners.delete(cb as SocketCallback);
+      if (listeners.size === 0) {
+        this.listeners.delete(event);
+      }
+      this.socket?.off(event, cb as SocketCallback);
+    };
+  }
+
+  private attachRegisteredListeners() {
+    if (!this.socket) return;
+
+    for (const [event, listeners] of this.listeners.entries()) {
+      for (const listener of listeners) {
+        this.socket.on(event, listener);
+      }
+    }
   }
 }
 

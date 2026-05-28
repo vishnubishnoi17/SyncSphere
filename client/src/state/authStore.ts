@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { setAuthToken } from '../services/api';
+import { configureAuthHandlers, setAuthToken } from '../services/api';
 import type { AuthState, User } from '../types';
 
 interface AuthStore extends AuthState {
@@ -40,3 +40,9 @@ export const useAuthStore = create<AuthStore>()(
     }
   )
 );
+
+configureAuthHandlers({
+  getRefreshToken: () => useAuthStore.getState().refreshToken,
+  onAccessTokenRefresh: (token) => useAuthStore.getState().setAccessToken(token),
+  onAuthFailure: () => useAuthStore.getState().logout(),
+});

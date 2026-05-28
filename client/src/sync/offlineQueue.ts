@@ -17,9 +17,10 @@ export const getDrainableOps = async (): Promise<PendingOperation[]> => {
   return ops.filter((op) => {
     if (op.retryCount >= MAX_RETRIES) return false;
     if (op.retryCount === 0) return true;
-    // backoff: use createdAt as last-attempt proxy (simple but effective)
+
     const delay = backoffDelay(op.retryCount);
-    return now - op.createdAt >= delay;
+    const lastAttemptAt = op.lastAttemptAt ?? op.createdAt;
+    return now - lastAttemptAt >= delay;
   });
 };
 
@@ -32,7 +33,11 @@ export const failOp = async (opId: string): Promise<void> => {
 };
 
 export const enqueue = async (op: Omit<PendingOperation, 'retryCount'>): Promise<void> => {
-  await db.pendingOps.put({ ...op, retryCount: 0 });
+  await db.pendingOps.put({
+    ...op,
+    retryCount: 0,
+    lastAttemptAt: op.lastAttemptAt ?? op.createdAt,
+  });
 };
 
 export const clearQueue = async (): Promise<void> => {

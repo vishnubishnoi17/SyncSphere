@@ -33,6 +33,18 @@ const generateTokens = (userId: string, email: string, deviceId: string) => {
   return { accessToken, refreshToken };
 };
 
+export const touchDevice = async (deviceId?: string) => {
+  if (!deviceId) return;
+
+  await query(
+    `UPDATE devices
+     SET last_seen = NOW()
+     WHERE id = $1
+       AND (last_seen IS NULL OR last_seen < NOW() - INTERVAL '1 minute')`,
+    [deviceId]
+  );
+};
+
 export const registerUser = async (input: RegisterInput) => {
   const { email, password, name, deviceName } = input;
 
@@ -89,7 +101,7 @@ export const loginUser = async (input: LoginInput) => {
   );
 
   // Update last_seen
-  await query('UPDATE devices SET last_seen = NOW() WHERE id = $1', [deviceId]);
+  await touchDevice(deviceId);
 
   const { password_hash: _, ...safeUser } = user;
   return { user: safeUser, accessToken, refreshToken, deviceId };
@@ -115,6 +127,7 @@ export const refreshAccessToken = async (refreshToken: string) => {
   const userResult = await query('SELECT id, email FROM users WHERE id = $1', [payload.userId]);
   const user = userResult.rows[0];
 
+  await touchDevice(payload.deviceId);
   const { accessToken } = generateTokens(user.id, user.email, payload.deviceId);
   return { accessToken };
 };

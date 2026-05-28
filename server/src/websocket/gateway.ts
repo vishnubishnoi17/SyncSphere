@@ -2,6 +2,7 @@ import { Server as IOServer, Socket } from 'socket.io';
 import { Server as HTTPServer } from 'http';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
+import { touchDevice } from '../services/auth.service';
 
 interface AuthSocket extends Socket {
   userId?: string;
@@ -55,6 +56,9 @@ export const createWebSocketGateway = (httpServer: HTTPServer) => {
 
   io.on('connection', (socket: AuthSocket) => {
     console.log(`WS connected: ${socket.userId} (${socket.id})`);
+    void touchDevice(socket.deviceId).catch((err) => {
+      console.warn('Failed to update socket device last_seen:', err);
+    });
 
     // --- Note room: join / leave ---
     socket.on('note:join', (noteId: string) => {

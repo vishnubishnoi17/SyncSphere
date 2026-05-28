@@ -1,7 +1,8 @@
-import { getSyncMeta, setSyncMeta, upsertNotes, markNoteSynced, markNoteConflict, db } from '../storage/db';
-import { getDrainableOps, acknowledgeOps, failOp, backoffDelay } from './offlineQueue';
+import { getSyncMeta, setSyncMeta, upsertNotes, markNoteConflict, db } from '../storage/db';
+import { getDrainableOps, acknowledgeOps, failOp } from './offlineQueue';
 import { resolveConflict } from './conflictResolver';
 import type { Note, SyncResult, ConflictInfo } from '../types';
+import { socketClient } from '../websocket/socketClient';
 
 const SYNC_INTERVAL_MS = 30_000; // 30 seconds
 
@@ -43,6 +44,9 @@ class SyncEngine {
     window.removeEventListener('online', this.handleOnline);
     window.removeEventListener('offline', this.handleOffline);
     if (this.syncTimer) clearInterval(this.syncTimer);
+    this.syncTimer = null;
+    this.callbacks = null;
+    this.isSyncing = false;
   }
 
   private handleOnline = () => {
@@ -158,6 +162,15 @@ class SyncEngine {
 
     // Update sync timestamp
     await setSyncMeta(lastSyncKey, result.newSyncAt);
+
+    const affectedOutboundNoteIds = Array.from(new Set([
+      ...result.appliedOps.map((opId) => pendingOps.find((op) => op.id === opId)?.noteId),
+      ...result.conflictedOps.map((conflicted) => pendingOps.find((op) => op.id === conflicted.opId)?.noteId),
+    ].filter((noteId): noteId is string => Boolean(noteId))));
+
+    if (affectedOutboundNoteIds.length > 0) {
+      socketClient.notifySyncComplete(affectedOutboundNoteIds);
+    }
 
     // Handle conflict resolution via field-level merge
     for (const conflicted of result.conflictedOps) {

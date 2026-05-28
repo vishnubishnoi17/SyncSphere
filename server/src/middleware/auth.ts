@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
+import { touchDevice } from '../services/auth.service';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -27,6 +28,9 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
     req.userId = payload.userId;
     req.deviceId = payload.deviceId;
     req.email = payload.email;
+    void touchDevice(payload.deviceId).catch((err) => {
+      console.warn('Failed to update device last_seen:', err);
+    });
     next();
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
@@ -42,6 +46,9 @@ export const optionalAuth = (req: AuthRequest, res: Response, next: NextFunction
       req.userId = payload.userId;
       req.deviceId = payload.deviceId;
       req.email = payload.email;
+      void touchDevice(payload.deviceId).catch((err) => {
+        console.warn('Failed to update device last_seen:', err);
+      });
     } catch {
       // ignore — optional
     }

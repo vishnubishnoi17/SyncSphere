@@ -52,6 +52,7 @@ export interface PendingOperation {
   clientVersion?: number;
   retryCount: number;
   createdAt: number; // epoch ms for ordering
+  lastAttemptAt?: number; // epoch ms for retry backoff bookkeeping
 }
 
 export interface SyncResult {

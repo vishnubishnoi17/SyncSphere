@@ -4,6 +4,7 @@ import { useAuthStore } from '../state/authStore';
 import { useNotesStore } from '../state/notesStore';
 import { getSyncMeta } from '../storage/db';
 import { API_BASE } from '../config/env';
+import { socketClient } from '../websocket/socketClient';
 
 export const useSync = () => {
   const { accessToken, deviceId } = useAuthStore();
@@ -34,6 +35,17 @@ export const useSync = () => {
 
     return () => syncEngine.destroy();
   }, [accessToken, deviceId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!deviceId) return;
+
+    const unsubscribe = socketClient.onSyncInvalidate(({ fromDevice }) => {
+      if (fromDevice === deviceId) return;
+      syncEngine.triggerSync().catch(console.error);
+    });
+
+    return unsubscribe;
+  }, [deviceId]);
 
   const triggerSync = useCallback(() => {
     syncEngine.triggerSync().catch(console.error);
